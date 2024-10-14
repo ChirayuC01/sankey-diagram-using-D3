@@ -474,6 +474,13 @@
           }
 
           // Add search functionality
+          d3.selectAll(".search-bar").on("input", function () {
+            var searchTerm = this.value;
+            var columnIndex = parseInt(this.getAttribute("data-column"));
+            performSearch(searchTerm, columnIndex);
+          });
+
+          // Keep the keypress event for Enter key
           d3.selectAll(".search-bar").on("keypress", function (event) {
             if (event.keyCode === 13) {
               // Enter key
