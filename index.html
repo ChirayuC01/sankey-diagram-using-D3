@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>SANKEY Diagram</title>
+    <style>
+      /* Styles remain the same */
+      .node rect {
+        cursor: pointer;
+        fill-opacity: 0.9;
+        shape-rendering: crispEdges;
+        width: 200px;
+        transition: box-shadow 0.3s ease;
+      }
+
+      .node text {
+        pointer-events: none;
+        fill: black;
+        font-size: 12px;
+        text-shadow: none;
+      }
+
+      .link {
+        fill: none;
+        stroke: gray;
+        stroke-opacity: 0.2;
+      }
+
+      .link.highlight,
+      .link.permanent-highlight {
+        stroke: #1849a9;
+        stroke-opacity: 0.7;
+      }
+
+      .node rect.highlight,
+      .node rect.permanent-highlight {
+        fill-opacity: 1;
+      }
+
+      .node.hidden,
+      .link.hidden {
+        display: none;
+      }
+
+      .node-border {
+        fill: #1849a9;
+      }
+
+      .node-border.left-border,
+      .node-border.right-border {
+        width: 1px;
+        height: 40px;
+        display: none;
+      }
+
+      .node.permanent-highlight rect {
+        box-shadow: 0px 0px 15px 5px rgba(0, 0, 0, 0.5);
+      }
+
+      .link-circle {
+        fill: gray;
+        stroke: none;
+      }
+
+      .link-circle.highlight,
+      .link-circle.permanent-highlight {
+        fill: #1849a9;
+      }
+    </style>
+  </head>
+  <body style="background-color: white">
+    <p id="chart"></p>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/3.5.17/d3.min.js"></script>
+    <script src="sankey.js"></script>
+
+    <script>
+      document.addEventListener("DOMContentLoaded", function () {
+        var units = "Widgets";
+        var margin = { top: 10, right: 10, bottom: 10, left: 10 };
+        var width = 1920 - margin.left - margin.right;
+        var height = 1080 - margin.top - margin.bottom;
+
+        var formatNumber = d3.format(",.0f");
+        var format = function (d) {
+          return formatNumber(d) + " " + units;
+        };
+        var color = d3.scale.category20();
+
+        var svg = d3
+          .select("#chart")
+          .append("svg")
+          .attr("width", width + margin.left + margin.right)
+          .attr("height", height + margin.top + margin.bottom)
+          .append("g")
+          .attr(
+            "transform",
+            "translate(" + margin.left + "," + margin.top + ")"
+          );
+
+        var sankey = d3
+          .sankey()
+          .nodeWidth(200)
+          .nodePadding(10)
+          .size([width, height]);
+
+        var path = sankey.link();
+
+        d3.json("sankeydata.json", function (error, graph) {
+          if (error) throw error;
+
+          var nodeMap = {};
+          graph.nodes.forEach(function (x) {
+            nodeMap[x.name] = x;
+          });
+          graph.links = graph.links.map(function (x) {
+            return {
+              source: nodeMap[x.source],
+              target: nodeMap[x.target],
+              value: x.value,
+            };
+          });
+
+          sankey.nodes(graph.nodes).links(graph.links).layout(32);
+
+          graph.nodes.forEach(function (d) {
+            d.incomingLinks = 0;
+            d.outgoingLinks = 0;
+          });
+
+          graph.links.forEach(function (link) {
+            link.source.outgoingLinks++;
+            link.target.incomingLinks++;
+          });
+
+          function calculateColumn(node, visitedNodes = new Set()) {
+            if (visitedNodes.has(node.name)) return node.column || 0;
+
+            visitedNodes.add(node.name);
+            if (node.incomingLinks === 0) {
+              node.column = 0;
+            } else {
+              let maxSourceColumn = 0;
+              graph.links.forEach(function (link) {
+                if (link.target.name === node.name) {
+                  const sourceColumn = calculateColumn(
+                    link.source,
+                    visitedNodes
+                  );
+                  if (sourceColumn + 1 > maxSourceColumn) {
+                    maxSourceColumn = sourceColumn + 1;
+                  }
+                }
+              });
+              node.column = maxSourceColumn;
+            }
+            return node.column;
+          }
+
+          graph.nodes.forEach(function (node) {
+            calculateColumn(node);
+          });
+
+          var columnWidth = 300;
+          var nodeHeight = 40;
+          var gap = 10;
+
+          function positionNodes(nodes) {
+            var columnHeights = {};
+            nodes.forEach(function (d) {
+              var column = d.column;
+              d.x = column * columnWidth;
+
+              if (!columnHeights[column]) {
+                columnHeights[column] = 0;
+              }
+
+              d.y = columnHeights[column];
+              columnHeights[column] += nodeHeight + gap;
+            });
+          }
+
+          positionNodes(graph.nodes);
+
+          var link = svg
+            .append("g")
+            .selectAll(".link")
+            .data(graph.links)
+            .enter()
+            .append("path")
+            .attr("class", "link")
+            .attr("d", path)
+            .style("stroke-width", "1px")
+            .sort(function (a, b) {
+              return b.dy - a.dy;
+            });
+
+          link.append("title").text(function (d) {
+            return (
+              d.source.name + " → " + d.target.name + "\n" + format(d.value)
+            );
+          });
+
+          var node = svg
+            .append("g")
+            .selectAll(".node")
+            .data(graph.nodes)
+            .enter()
+            .append("g")
+            .attr("class", "node");
+
+          node
+            .append("rect")
+            .attr("x", function (d) {
+              return d.x;
+            })
+            .attr("y", function (d) {
+              return d.y;
+            })
+            .attr("height", 40)
+            .attr("width", 200)
+            .style("fill", "#eff8ff");
+
+          node
+            .append("rect")
+            .attr("class", "node-border left-border")
+            .attr("x", function (d) {
+              return d.x - 1;
+            })
+            .attr("y", function (d) {
+              return d.y;
+            });
+
+          node
+            .append("rect")
+            .attr("class", "node-border right-border")
+            .attr("x", function (d) {
+              return d.x + 200;
+            })
+            .attr("y", function (d) {
+              return d.y;
+            });
+
+          node
+            .append("text")
+            .attr("x", function (d) {
+              return d.x + 100;
+            })
+            .attr("y", function (d) {
+              return d.y + 20;
+            })
+            .attr("dy", ".35em")
+            .attr("text-anchor", "middle")
+            .text(function (d) {
+              return d.name;
+            });
+
+          node.on("mouseover", function (d) {
+            var isPermanentHighlightActive =
+              svg.selectAll(".permanent-highlight").size() > 0;
+
+            if (!isPermanentHighlightActive) {
+              highlightRelevantPaths(d, false);
+              d3.select(this).select(".left-border").style("display", "block");
+              d3.select(this).select(".right-border").style("display", "block");
+            }
+          });
+
+          node.on("mouseout", function (d) {
+            var isPermanentHighlightActive =
+              svg.selectAll(".permanent-highlight").size() > 0;
+
+            if (!isPermanentHighlightActive) {
+              resetTemporaryHighlights();
+              d3.select(this).select(".left-border").style("display", "none");
+              d3.select(this).select(".right-border").style("display", "none");
+            }
+          });
+
+          node.on("click", function (d) {
+            var isFocused = d3.select(this).classed("permanent-highlight");
+            resetFocus();
+            if (!isFocused) {
+              focusOnNode(d);
+            }
+          });
+
+          function resetTemporaryHighlights() {
+            node.select("rect").classed("highlight", false);
+            link.classed("highlight", false);
+          }
+
+          function resetFocus() {
+            node.classed("permanent-highlight", false).classed("hidden", false);
+            node.selectAll(".node-border").style("display", "none");
+            link.classed("permanent-highlight", false).classed("hidden", false);
+            positionNodes(graph.nodes);
+            updateNodePositions();
+            updateLinkPaths();
+          }
+
+          function highlightRelevantPaths(d, isPermanent) {
+            var relevantNodes = new Set();
+            var relevantLinks = new Set();
+
+            function traverse(node, upstream) {
+              relevantNodes.add(node);
+              var links = upstream ? node.targetLinks : node.sourceLinks;
+              links.forEach(function (link) {
+                relevantLinks.add(link);
+                traverse(upstream ? link.source : link.target, upstream);
+              });
+            }
+
+            traverse(d, true);
+            traverse(d, false);
+
+            var highlightClass = isPermanent
+              ? "permanent-highlight"
+              : "highlight";
+
+            node.select("rect").classed(highlightClass, function (n) {
+              return relevantNodes.has(n);
+            });
+
+            link.classed(highlightClass, function (l) {
+              return relevantLinks.has(l);
+            });
+          }
+
+          function focusOnNode(focusNode) {
+            var relevantNodes = new Set();
+            var relevantLinks = new Set();
+
+            function traverse(node, upstream) {
+              relevantNodes.add(node);
+              var links = upstream ? node.targetLinks : node.sourceLinks;
+              links.forEach(function (link) {
+                relevantLinks.add(link);
+                traverse(upstream ? link.source : link.target, upstream);
+              });
+            }
+
+            traverse(focusNode, true);
+            traverse(focusNode, false);
+
+            node.classed("hidden", function (d) {
+              return !relevantNodes.has(d);
+            });
+            link.classed("hidden", function (d) {
+              return !relevantLinks.has(d);
+            });
+
+            node.classed("permanent-highlight", function (d) {
+              return relevantNodes.has(d);
+            });
+            node.selectAll(".node-border").style("display", function (d) {
+              return relevantNodes.has(d) ? "block" : "none";
+            });
+            link.classed("permanent-highlight", function (d) {
+              return relevantLinks.has(d);
+            });
+
+            // Reposition visible nodes
+            var visibleNodes = graph.nodes.filter(function (d) {
+              return relevantNodes.has(d);
+            });
+            positionNodes(visibleNodes);
+            updateNodePositions();
+            updateLinkPaths();
+          }
+
+          function updateNodePositions() {
+            node
+              .transition()
+              .duration(750)
+              .attr("transform", function (d) {
+                return "translate(" + d.x + "," + d.y + ")";
+              });
+
+            node
+              .selectAll("rect:not(.node-border)")
+              .transition()
+              .duration(750)
+              .attr("x", 0)
+              .attr("y", 0);
+
+            node
+              .selectAll(".left-border")
+              .transition()
+              .duration(750)
+              .attr("x", -1)
+              .attr("y", 0);
+
+            node
+              .selectAll(".right-border")
+              .transition()
+              .duration(750)
+              .attr("x", 200)
+              .attr("y", 0);
+
+            node
+              .selectAll("text")
+              .transition()
+              .duration(750)
+              .attr("x", 100)
+              .attr("y", 20);
+          }
+
+          function updateLinkPaths() {
+            link.transition().duration(750).attr("d", path);
+          }
+        });
+      });
+    </script>
+  </body>
+</html>
