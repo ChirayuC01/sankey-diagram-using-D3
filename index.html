@@ -90,7 +90,7 @@
     <script>
       document.addEventListener("DOMContentLoaded", function () {
         var units = "Widgets";
-        var margin = { top: 40, right: 10, bottom: 10, left: 10 };
+        var margin = { top: 0, right: 10, bottom: 10, left: 10 };
         var width = 1920 - margin.left - margin.right;
         var height = 1080 - margin.top - margin.bottom;
 
@@ -206,6 +206,7 @@
             .attr("class", "link")
             .attr("d", path)
             .style("stroke-width", "1px")
+            .style("marker-start", "url(#arrow)") // Attach arrow marker to the start of the link
             .sort(function (a, b) {
               return b.dy - a.dy;
             });
@@ -482,15 +483,51 @@
           });
           var searchContainer = d3.select("#search-container");
 
+          var labels = [
+            "Market Authority",
+            "Buyers",
+            "Sellers",
+            "Intermediate",
+          ]; // Array of labels for each column
+
           for (var i = 0; i <= maxColumn; i++) {
-            searchContainer
+            var searchContainerColumn = searchContainer
+              .append("div") // Create a container for each column
+              .style("position", "relative")
+              .style("display", "inline-block")
+              .style("width", columnWidth + "px");
+
+            searchContainerColumn
               .append("input")
               .attr("type", "text")
               .attr("class", "search-bar")
               .attr("placeholder", "Search column " + (i + 1))
-              .attr("data-column", i)
-              .style("left", i * columnWidth + "px");
+              .attr("data-column", i);
+
+            searchContainerColumn
+              .append("label")
+              .attr("for", "search-bar-" + i)
+              .text(labels[i] || "") // Use the labels array to add the corresponding label
+              .style("display", "block")
+              .style("margin-top", "35px")
+              .style("font-size", "14px")
+              .style("text-align", "left");
           }
+
+          // Append arrow marker definition to the SVG
+          svg
+            .append("defs")
+            .append("marker")
+            .attr("id", "arrow")
+            .attr("viewBox", "0 0 10 10")
+            .attr("refX", 0) // Positioning of the arrow relative to the link
+            .attr("refY", 5)
+            .attr("markerWidth", 6)
+            .attr("markerHeight", 6)
+            .attr("orient", "auto")
+            .append("path")
+            .attr("d", "M 10 0 L 0 5 L 10 10 z") // This creates a left-pointing triangle
+            .attr("fill", "gray"); // Arrow color
 
           // Add search functionality
           d3.selectAll(".search-bar").on("input", function () {
