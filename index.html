@@ -352,7 +352,7 @@
             });
           }
 
-          function focusOnNode(focusNode) {
+          function focusOnNodes(focusNodes) {
             var relevantNodes = new Set();
             var relevantLinks = new Set();
 
@@ -365,8 +365,11 @@
               });
             }
 
-            traverse(focusNode, true);
-            traverse(focusNode, false);
+            // Traverse for each node in the focusNodes array
+            focusNodes.forEach(function (focusNode) {
+              traverse(focusNode, true);
+              traverse(focusNode, false);
+            });
 
             node.classed("hidden", function (d) {
               return !relevantNodes.has(d);
@@ -438,20 +441,27 @@
           // Updated search functionality
           function performSearch(searchTerm, columnIndex) {
             searchTerm = searchTerm.toLowerCase();
-            var foundNode = null;
+
+            // If the search term is empty, reset the focus
+            if (searchTerm === "") {
+              resetFocus();
+              return;
+            }
+
+            var foundNodes = [];
 
             node.each(function (d) {
               if (
                 d.column === columnIndex &&
-                d.name.toLowerCase() === searchTerm
+                d.name.toLowerCase().includes(searchTerm) // Use includes() for partial match
               ) {
-                foundNode = d;
+                foundNodes.push(d);
               }
             });
 
-            if (foundNode) {
+            if (foundNodes.length > 0) {
               resetFocus();
-              focusOnNode(foundNode);
+              focusOnNodes(foundNodes);
             } else {
               resetFocus();
             }
