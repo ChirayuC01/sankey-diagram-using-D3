@@ -294,15 +294,24 @@
 
           node.on("click", function (d) {
             var isFocused = d3.select(this).classed("permanent-highlight");
-            resetFocus();
+
+            resetFocus(); // Reset focus on all nodes first
+
             if (!isFocused) {
-              focusOnNode(d);
-              // Update search bar with clicked node's name
+              // Find all nodes that match the clicked node's name
+              var matchingNodes = graph.nodes.filter(function (node) {
+                return node.name === d.name;
+              });
+
+              // Focus on all matching nodes
+              focusOnNodes(matchingNodes);
+
+              // Update search bar with clicked node's name in the corresponding column search bar
               d3.select('.search-bar[data-column="' + d.column + '"]')
                 .property("value", d.name)
                 .dispatch("input");
             } else {
-              // Clear the search bar if the node is unselected
+              // If node is already focused, clear the search bar in the respective column
               d3.select('.search-bar[data-column="' + d.column + '"]')
                 .property("value", "")
                 .dispatch("input");
