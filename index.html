@@ -66,9 +66,22 @@
       .link-circle.permanent-highlight {
         fill: #1849a9;
       }
+      .search-container {
+        position: relative;
+        width: 100%;
+        margin-bottom: 20px;
+      }
+      .search-bar {
+        position: absolute;
+        width: 200px;
+        padding: 5px;
+        font-size: 14px;
+      }
     </style>
   </head>
   <body style="background-color: white">
+    <div class="search-container" id="search-container"></div>
+
     <p id="chart"></p>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/3.5.17/d3.min.js"></script>
@@ -77,7 +90,7 @@
     <script>
       document.addEventListener("DOMContentLoaded", function () {
         var units = "Widgets";
-        var margin = { top: 10, right: 10, bottom: 10, left: 10 };
+        var margin = { top: 40, right: 10, bottom: 10, left: 10 };
         var width = 1920 - margin.left - margin.right;
         var height = 1080 - margin.top - margin.bottom;
 
@@ -105,6 +118,8 @@
           .size([width, height]);
 
         var path = sankey.link();
+
+        var columnWidth = 300;
 
         d3.json("sankeydata.json", function (error, graph) {
           if (error) throw error;
@@ -282,6 +297,15 @@
             resetFocus();
             if (!isFocused) {
               focusOnNode(d);
+              // Update search bar with clicked node's name
+              d3.select('.search-bar[data-column="' + d.column + '"]')
+                .property("value", d.name)
+                .dispatch("input");
+            } else {
+              // Clear the search bar if the node is unselected
+              d3.select('.search-bar[data-column="' + d.column + '"]')
+                .property("value", "")
+                .dispatch("input");
             }
           });
 
@@ -410,6 +434,54 @@
           function updateLinkPaths() {
             link.transition().duration(750).attr("d", path);
           }
+
+          // Updated search functionality
+          function performSearch(searchTerm, columnIndex) {
+            searchTerm = searchTerm.toLowerCase();
+            var foundNode = null;
+
+            node.each(function (d) {
+              if (
+                d.column === columnIndex &&
+                d.name.toLowerCase() === searchTerm
+              ) {
+                foundNode = d;
+              }
+            });
+
+            if (foundNode) {
+              resetFocus();
+              focusOnNode(foundNode);
+            } else {
+              resetFocus();
+            }
+          }
+
+          // Add search bars dynamically
+          var maxColumn = d3.max(graph.nodes, function (d) {
+            return d.column;
+          });
+          var searchContainer = d3.select("#search-container");
+
+          for (var i = 0; i <= maxColumn; i++) {
+            searchContainer
+              .append("input")
+              .attr("type", "text")
+              .attr("class", "search-bar")
+              .attr("placeholder", "Search column " + (i + 1))
+              .attr("data-column", i)
+              .style("left", i * columnWidth + "px");
+          }
+
+          // Add search functionality
+          d3.selectAll(".search-bar").on("keypress", function (event) {
+            if (event.keyCode === 13) {
+              // Enter key
+              var searchTerm = this.value;
+              var columnIndex = parseInt(this.getAttribute("data-column"));
+              performSearch(searchTerm, columnIndex);
+            }
+          });
         });
       });
     </script>
