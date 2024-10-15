@@ -124,6 +124,51 @@
         d3.json("sankeydata.json", function (error, graph) {
           if (error) throw error;
 
+          // Initialize selected nodes array
+          var selectedNodes = [];
+
+          // Function to find common relevant nodes and links for all selected nodes
+          function getCommonRelevantLinksAndNodes(selectedNodes) {
+            if (selectedNodes.length === 0)
+              return { relevantNodes: new Set(), relevantLinks: new Set() };
+
+            var relevantNodes = new Set();
+            var relevantLinks = new Set();
+
+            // Traverse for each selected node and keep only common relevant nodes and links
+            selectedNodes.forEach(function (node, index) {
+              var nodesForCurrent = new Set();
+              var linksForCurrent = new Set();
+
+              function traverse(node, upstream) {
+                nodesForCurrent.add(node);
+                var links = upstream ? node.targetLinks : node.sourceLinks;
+                links.forEach(function (link) {
+                  linksForCurrent.add(link);
+                  traverse(upstream ? link.source : link.target, upstream);
+                });
+              }
+
+              // Traverse upstream and downstream for the current node
+              traverse(node, true);
+              traverse(node, false);
+
+              if (index === 0) {
+                relevantNodes = nodesForCurrent;
+                relevantLinks = linksForCurrent;
+              } else {
+                relevantNodes = new Set(
+                  [...relevantNodes].filter((n) => nodesForCurrent.has(n))
+                );
+                relevantLinks = new Set(
+                  [...relevantLinks].filter((l) => linksForCurrent.has(l))
+                );
+              }
+            });
+
+            return { relevantNodes, relevantLinks };
+          }
+
           var nodeMap = {};
           graph.nodes.forEach(function (x) {
             nodeMap[x.name] = x;
@@ -294,29 +339,30 @@
           });
 
           node.on("click", function (d) {
-            var isFocused = d3.select(this).classed("permanent-highlight");
+            var isSelected = selectedNodes.includes(d);
 
-            resetFocus(); // Reset focus on all nodes first
-
-            if (!isFocused) {
-              // Find all nodes that match the clicked node's name
-              var matchingNodes = graph.nodes.filter(function (node) {
-                return node.name === d.name;
+            // Reset the view if no nodes are selected
+            if (isSelected) {
+              // Deselect the clicked node
+              selectedNodes = selectedNodes.filter(function (n) {
+                return n !== d;
               });
-
-              // Focus on all matching nodes
-              focusOnNodes(matchingNodes);
-
-              // Update search bar with clicked node's name in the corresponding column search bar
-              d3.select('.search-bar[data-column="' + d.column + '"]')
-                .property("value", d.name)
-                .dispatch("input");
             } else {
-              // If node is already focused, clear the search bar in the respective column
-              d3.select('.search-bar[data-column="' + d.column + '"]')
-                .property("value", "")
-                .dispatch("input");
+              // Select the node if it's not already selected
+              selectedNodes.push(d);
             }
+
+            // If no nodes are selected, reset focus
+            if (selectedNodes.length === 0) {
+              resetFocus();
+            } else {
+              focusOnNodes(selectedNodes);
+            }
+
+            // Update search bar with clicked node's name
+            d3.select('.search-bar[data-column="' + d.column + '"]')
+              .property("value", selectedNodes.length > 0 ? d.name : "")
+              .dispatch("input");
           });
 
           function resetTemporaryHighlights() {
@@ -325,6 +371,7 @@
           }
 
           function resetFocus() {
+            selectedNodes = [];
             node.classed("permanent-highlight", false).classed("hidden", false);
             node.selectAll(".node-border").style("display", "none");
             link.classed("permanent-highlight", false).classed("hidden", false);
@@ -362,25 +409,56 @@
             });
           }
 
-          function focusOnNodes(focusNodes) {
-            var relevantNodes = new Set();
-            var relevantLinks = new Set();
+          // function focusOnNodes(focusNodes) {
+          //   var relevantNodes = new Set();
+          //   var relevantLinks = new Set();
 
-            function traverse(node, upstream) {
-              relevantNodes.add(node);
-              var links = upstream ? node.targetLinks : node.sourceLinks;
-              links.forEach(function (link) {
-                relevantLinks.add(link);
-                traverse(upstream ? link.source : link.target, upstream);
-              });
-            }
+          //   function traverse(node, upstream) {
+          //     relevantNodes.add(node);
+          //     var links = upstream ? node.targetLinks : node.sourceLinks;
+          //     links.forEach(function (link) {
+          //       relevantLinks.add(link);
+          //       traverse(upstream ? link.source : link.target, upstream);
+          //     });
+          //   }
 
-            // Traverse for each node in the focusNodes array
-            focusNodes.forEach(function (focusNode) {
-              traverse(focusNode, true);
-              traverse(focusNode, false);
-            });
+          //   // Traverse for each node in the focusNodes array
+          //   focusNodes.forEach(function (focusNode) {
+          //     traverse(focusNode, true);
+          //     traverse(focusNode, false);
+          //   });
 
+          //   node.classed("hidden", function (d) {
+          //     return !relevantNodes.has(d);
+          //   });
+          //   link.classed("hidden", function (d) {
+          //     return !relevantLinks.has(d);
+          //   });
+
+          //   node.classed("permanent-highlight", function (d) {
+          //     return relevantNodes.has(d);
+          //   });
+          //   node.selectAll(".node-border").style("display", function (d) {
+          //     return relevantNodes.has(d) ? "block" : "none";
+          //   });
+          //   link.classed("permanent-highlight", function (d) {
+          //     return relevantLinks.has(d);
+          //   });
+
+          //   // Reposition visible nodes
+          //   var visibleNodes = graph.nodes.filter(function (d) {
+          //     return relevantNodes.has(d);
+          //   });
+          //   positionNodes(visibleNodes);
+          //   updateNodePositions();
+          //   updateLinkPaths();
+          // }
+
+          function focusOnNodes(selectedNodes) {
+            var { relevantNodes, relevantLinks } =
+              getCommonRelevantLinksAndNodes(selectedNodes);
+
+            // Hide all non-relevant nodes and links
             node.classed("hidden", function (d) {
               return !relevantNodes.has(d);
             });
@@ -388,14 +466,17 @@
               return !relevantLinks.has(d);
             });
 
+            // Highlight relevant nodes and links
             node.classed("permanent-highlight", function (d) {
               return relevantNodes.has(d);
             });
-            node.selectAll(".node-border").style("display", function (d) {
-              return relevantNodes.has(d) ? "block" : "none";
-            });
             link.classed("permanent-highlight", function (d) {
               return relevantLinks.has(d);
+            });
+
+            // Show node borders and update positions
+            node.selectAll(".node-border").style("display", function (d) {
+              return relevantNodes.has(d) ? "block" : "none";
             });
 
             // Reposition visible nodes
