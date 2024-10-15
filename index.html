@@ -338,6 +338,7 @@
             }
           });
 
+          // Modify the node click event to allow multiple node selections
           node.on("click", function (d) {
             var isSelected = selectedNodes.includes(d);
 
@@ -347,22 +348,32 @@
               selectedNodes = selectedNodes.filter(function (n) {
                 return n !== d;
               });
+
+              // Clear the search bar for this node
+              d3.select('.search-bar[data-column="' + d.column + '"]').property(
+                "value",
+                ""
+              );
             } else {
               // Select the node if it's not already selected
               selectedNodes.push(d);
+
+              // Update the search bar with the clicked node's name
+              d3.select('.search-bar[data-column="' + d.column + '"]').property(
+                "value",
+                d.name
+              );
             }
 
-            // If no nodes are selected, reset focus
+            // If no nodes are selected, reset focus and clear all search bars
             if (selectedNodes.length === 0) {
               resetFocus();
+
+              // Clear all search bars
+              d3.selectAll(".search-bar").property("value", "");
             } else {
               focusOnNodes(selectedNodes);
             }
-
-            // Update search bar with clicked node's name
-            d3.select('.search-bar[data-column="' + d.column + '"]')
-              .property("value", selectedNodes.length > 0 ? d.name : "")
-              .dispatch("input");
           });
 
           function resetTemporaryHighlights() {
