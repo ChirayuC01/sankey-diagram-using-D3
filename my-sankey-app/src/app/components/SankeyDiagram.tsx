@@ -3,6 +3,15 @@ import React, { useEffect, useRef } from "react";
 import * as d3 from "d3";
 import { d3Sankey } from "../utils/d3-sankey";
 
+// Extend the Sankey interface to match the implementation
+interface CustomSankey {
+  nodeWidth(width: number): CustomSankey;
+  nodePadding(padding: number): CustomSankey;
+  size(size: [number, number]): CustomSankey;
+  nodes(nodes: any[]): CustomSankey;
+  links(links: any[]): CustomSankey;
+  layout(iterations: number): CustomSankey;
+}
 interface SankeyNode extends d3.SimulationNodeDatum {
   name: string;
   column: number;
@@ -19,9 +28,9 @@ interface SankeyLink {
   source: SankeyNode;
   target: SankeyNode;
   value: number;
-  sy?: number;
-  ty?: number;
-  dy?: number;
+  sy?: number; // Add this
+  ty?: number; // Add this
+  dy?: number; // Add this
 }
 
 interface SankeyProps {
@@ -42,7 +51,7 @@ const SankeyDiagram: React.FC<SankeyProps> = ({ data }) => {
     d3.select(svgRef.current).selectAll("*").remove();
 
     // Set up dimensions
-    const margin = { top: 90, right: 10, bottom: 10, left: 10 };
+    const margin = { top: 10, right: 10, bottom: 10, left: 10 };
     const width = 1280 - margin.left - margin.right;
     const height = 720 - margin.top - margin.bottom;
 
@@ -56,8 +65,6 @@ const SankeyDiagram: React.FC<SankeyProps> = ({ data }) => {
 
     // Calculate columns for nodes
     const nodeColumns = new Map<string, number>();
-    const processedNodes = new Set<string>();
-
     // Find start nodes and end nodes
     const startNodes = new Set(data.nodes.map((n) => n.name));
     data.links.forEach((link) => {
@@ -80,43 +87,65 @@ const SankeyDiagram: React.FC<SankeyProps> = ({ data }) => {
     const nodeMap = new Map<string, SankeyNode>();
 
     // Initialize sankeyData with proper x values
+    // Initialize sankeyData with proper x values
     const sankeyData = {
       nodes: data.nodes.map((node) => {
-        const column = nodeColumns.get(node.name) || 0;
-        const xPosition = (column * (width - 200)) / Math.max(1, maxColumn);
-
         const sankeyNode: SankeyNode = {
           name: node.name,
-          column: column,
-          x: xPosition,
+          column: 0,
+          x: 0,
           sourceLinks: [],
           targetLinks: [],
           value: 0,
         };
-
         nodeMap.set(node.name, sankeyNode);
         return sankeyNode;
       }),
-      links: [] as SankeyLink[],
+      links: data.links.map((link) => ({
+        source: nodeMap.get(link.source)!,
+        target: nodeMap.get(link.target)!,
+        value: Number(link.value) || 1,
+      })) as SankeyLink[], // Explicitly cast to SankeyLink[]
     };
 
-    // Process links after all nodes are created
-    sankeyData.links = data.links.map((link) => ({
-      source: nodeMap.get(link.source)!,
-      target: nodeMap.get(link.target)!,
-      value: Number(link.value) || 1, // Default to 1 if value is not provided
-    }));
-
     // Create and configure the Sankey generator
-    const sankey = d3Sankey()
+    const sankey = d3Sankey() as CustomSankey;
+
+    // Chain method calls with proper typing
+    sankey
       .nodeWidth(200)
       .nodePadding(20)
-      .size([width, height]);
+      .size([width, height])
+      .nodes(sankeyData.nodes)
+      .links(sankeyData.links)
+      .layout(32);
 
-    // Apply the layout
-    sankey.nodes(sankeyData.nodes).links(sankeyData.links).layout(32);
     console.log("data---", data);
     console.log("sankeyData.nodes---", sankeyData.nodes);
+    // Adjust sy and ty to center the links vertically
+    sankeyData.links.forEach((link) => {
+      link.sy = (link.source.y || 0) + (link.source.dy || 0) / 2;
+      link.ty = (link.target.y || 0) + (link.target.dy || 0) / 2;
+    });
+
+    // Define a custom path generator for links
+    const sankeyLinkPath = (link: SankeyLink) => {
+      const sourceX = (link.source.x || 0) + 200; // Node width
+      const sourceY = link.sy || 0;
+      const targetX = link.target.x || 0;
+      const targetY = link.ty || 0;
+
+      // Generate a cubic Bézier curve
+      const curvature = 0.5;
+      const controlPointX1 = sourceX + curvature * (targetX - sourceX);
+      const controlPointX2 = targetX - curvature * (targetX - sourceX);
+      return `
+        M${sourceX},${sourceY}
+        C${controlPointX1},${sourceY}
+         ${controlPointX2},${targetY}
+         ${targetX},${targetY}
+      `;
+    };
 
     // Draw links
     const link = svg
@@ -126,8 +155,8 @@ const SankeyDiagram: React.FC<SankeyProps> = ({ data }) => {
       .enter()
       .append("path")
       .attr("class", "link")
-      .attr("d", sankey.link())
-      .style("stroke-width", "1px")
+      .attr("d", (d) => sankeyLinkPath(d as SankeyLink))
+      .style("stroke-width", (d) => Math.max(1, d.dy || 1))
       .style("stroke", "gray")
       .style("stroke-opacity", 0.2)
       .style("fill", "none");
@@ -190,7 +219,8 @@ const SankeyDiagram: React.FC<SankeyProps> = ({ data }) => {
       .attr("dy", ".35em")
       .attr("text-anchor", "middle")
       .text((d) => d.name)
-      .style("font-size", "12px");
+      .style("font-size", "12px")
+      .style("cursor", "pointer");
 
     // Node interaction handlers
     const highlightRelevantPaths = (node: SankeyNode, isPermanent: boolean) => {

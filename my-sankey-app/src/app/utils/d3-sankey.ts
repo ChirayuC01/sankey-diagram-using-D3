@@ -21,7 +21,7 @@ export function d3Sankey() { // Rename the function as well for consistency
     }
 
     interface Sankey {
-        nodeWidth(_: number): Sankey | number | any;
+        nodeWidth(_: number): Sankey | number;
         nodePadding(_: number): Sankey | number;
         nodes(_: Node[]): Sankey | Node[];
         links(_: Link[]): Sankey | Link[];
@@ -43,54 +43,54 @@ export function d3Sankey() { // Rename the function as well for consistency
     let nodes: Node[] = [];
     let links: Link[] = [];
 
-    d3Sankey.nodeWidth = function (_?: number): any {
+    d3Sankey.nodeWidth = function (_?: number): number | Sankey {
         if (_ === undefined) return nodeWidth;
         nodeWidth = +_;
-        return d3Sankey;
+        return d3Sankey as Sankey;
     };
 
-    d3Sankey.nodePadding = function (_?: number): any {
+    d3Sankey.nodePadding = function (_?: number): number | Sankey {
         if (_ === undefined) return nodePadding;
         nodePadding = +_;
-        return d3Sankey;
+        return d3Sankey as Sankey;
     };
 
-    d3Sankey.nodes = function (_?: Node[]): any {
+    d3Sankey.nodes = function (_?: Node[]): Node[] | Sankey {
         if (_ === undefined) return nodes;
         nodes = _;
-        return d3Sankey;
+        return d3Sankey as Sankey;
     };
 
-    d3Sankey.links = function (_?: Link[]): any {
+    d3Sankey.links = function (_?: Link[]): Link[] | Sankey {
         if (_ === undefined) return links;
         links = _;
-        return d3Sankey;
+        return d3Sankey as Sankey;
     };
 
-    d3Sankey.size = function (_?: [number, number]): any {
+    d3Sankey.size = function (_?: [number, number]): [number, number] | Sankey {
         if (_ === undefined) return size;
         size = _;
-        return d3Sankey;
+        return d3Sankey as Sankey;
     };
 
-    d3Sankey.layout = function (iterations: number): any {
+    d3Sankey.layout = function (iterations: number): Sankey {
         computeNodeLinks();
         computeNodeValues();
         computeNodeBreadths();
         computeNodeDepths(iterations);
         computeLinkDepths();
-        return d3Sankey;
+        return d3Sankey as Sankey;
     };
 
-    d3Sankey.relayout = function (): any {
+    d3Sankey.relayout = function (): Sankey {
         computeLinkDepths();
-        return d3Sankey;
+        return d3Sankey as Sankey;
     };
 
     d3Sankey.link = function (): SankeyLink {
         let curvature = 0.5;
 
-        function link(d: Link): string {
+        const link: SankeyLink = function (d: Link): string {
             const x0 = (d.source as Node).x! + (d.source as Node).dx!;
             const x1 = (d.target as Node).x!;
             const xi = d3.interpolateNumber(x0, x1);
@@ -100,9 +100,9 @@ export function d3Sankey() { // Rename the function as well for consistency
             const y1 = (d.target as Node).y! + (d.dy || 0) / 2;
 
             return `M${x0},${y0}C${x2},${y0} ${x3},${y1} ${x1},${y1}`;
-        }
+        };
 
-        link.curvature = function (_?: number): any {
+        link.curvature = function (_?: number): number | SankeyLink {
             if (_ === undefined) return curvature;
             curvature = +_;
             return link;
@@ -110,6 +110,7 @@ export function d3Sankey() { // Rename the function as well for consistency
 
         return link;
     };
+
 
     function computeNodeLinks(): void {
         nodes.forEach((node) => {
