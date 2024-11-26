@@ -1,9 +1,9 @@
 "use client";
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import * as d3 from "d3";
 import { d3Sankey } from "../utils/d3-sankey";
 
-// Extend the Sankey interface to match the implementation
+// Define types for the Sankey diagram
 interface CustomSankey {
   nodeWidth(width: number): CustomSankey;
   nodePadding(padding: number): CustomSankey;
@@ -12,6 +12,7 @@ interface CustomSankey {
   links(links: any[]): CustomSankey;
   layout(iterations: number): CustomSankey;
 }
+
 interface SankeyNode extends d3.SimulationNodeDatum {
   name: string;
   column: number;
@@ -28,9 +29,9 @@ interface SankeyLink {
   source: SankeyNode;
   target: SankeyNode;
   value: number;
-  sy?: number; // Add this
-  ty?: number; // Add this
-  dy?: number; // Add this
+  sy?: number;
+  ty?: number;
+  dy?: number;
 }
 
 interface SankeyProps {
@@ -43,6 +44,10 @@ interface SankeyProps {
 const SankeyDiagram: React.FC<SankeyProps> = ({ data }) => {
   const svgRef = useRef<SVGSVGElement>(null);
   const selectedNodesRef = useRef<SankeyNode[]>([]);
+  const [highlightedNodes, setHighlightedNodes] = useState<Set<string>>(
+    new Set()
+  );
+  const [searchQuery, setSearchQuery] = useState<string>("");
 
   useEffect(() => {
     if (!svgRef.current || !data) return;
@@ -51,7 +56,7 @@ const SankeyDiagram: React.FC<SankeyProps> = ({ data }) => {
     d3.select(svgRef.current).selectAll("*").remove();
 
     // Set up dimensions
-    const margin = { top: 10, right: 10, bottom: 10, left: 10 };
+    const margin = { top: 10, right: 10, bottom: 400, left: 10 };
     const width = 1280 - margin.left - margin.right;
     const height = 720 - margin.top - margin.bottom;
 
@@ -63,31 +68,9 @@ const SankeyDiagram: React.FC<SankeyProps> = ({ data }) => {
       .append("g")
       .attr("transform", `translate(${margin.left},${margin.top})`);
 
-    // Calculate columns for nodes
-    const nodeColumns = new Map<string, number>();
-    // Find start nodes and end nodes
-    const startNodes = new Set(data.nodes.map((n) => n.name));
-    data.links.forEach((link) => {
-      startNodes.delete(link.target);
-    });
-
-    const endNodes = new Set(data.nodes.map((n) => n.name));
-    data.links.forEach((link) => {
-      endNodes.delete(link.source);
-    });
-
-    // Calculate maximum column number
-    let maxColumn = 0;
-    data.nodes.forEach((node) => {
-      const col = nodeColumns.get(node.name) || 0;
-      maxColumn = Math.max(maxColumn, col);
-    });
-
-    // Create node map for quick lookups
+    // Initialize node map for quick lookups
     const nodeMap = new Map<string, SankeyNode>();
 
-    // Initialize sankeyData with proper x values
-    // Initialize sankeyData with proper x values
     const sankeyData = {
       nodes: data.nodes.map((node) => {
         const sankeyNode: SankeyNode = {
@@ -105,13 +88,11 @@ const SankeyDiagram: React.FC<SankeyProps> = ({ data }) => {
         source: nodeMap.get(link.source)!,
         target: nodeMap.get(link.target)!,
         value: Number(link.value) || 1,
-      })) as SankeyLink[], // Explicitly cast to SankeyLink[]
+      })) as SankeyLink[],
     };
 
     // Create and configure the Sankey generator
     const sankey = d3Sankey() as CustomSankey;
-
-    // Chain method calls with proper typing
     sankey
       .nodeWidth(200)
       .nodePadding(20)
@@ -120,9 +101,7 @@ const SankeyDiagram: React.FC<SankeyProps> = ({ data }) => {
       .links(sankeyData.links)
       .layout(32);
 
-    console.log("data---", data);
-    console.log("sankeyData.nodes---", sankeyData.nodes);
-    // Adjust sy and ty to center the links vertically
+    // Adjust link positioning (sy and ty)
     sankeyData.links.forEach((link) => {
       link.sy = (link.source.y || 0) + (link.source.dy || 0) / 2;
       link.ty = (link.target.y || 0) + (link.target.dy || 0) / 2;
@@ -130,21 +109,17 @@ const SankeyDiagram: React.FC<SankeyProps> = ({ data }) => {
 
     // Define a custom path generator for links
     const sankeyLinkPath = (link: SankeyLink) => {
-      const sourceX = (link.source.x || 0) + 200; // Node width
+      const sourceX = (link.source.x || 0) + 200;
       const sourceY = link.sy || 0;
       const targetX = link.target.x || 0;
       const targetY = link.ty || 0;
-
-      // Generate a cubic Bézier curve
       const curvature = 0.5;
       const controlPointX1 = sourceX + curvature * (targetX - sourceX);
       const controlPointX2 = targetX - curvature * (targetX - sourceX);
-      return `
-        M${sourceX},${sourceY}
+      return `M${sourceX},${sourceY}
         C${controlPointX1},${sourceY}
-         ${controlPointX2},${targetY}
-         ${targetX},${targetY}
-      `;
+        ${controlPointX2},${targetY}
+        ${targetX},${targetY}`;
     };
 
     // Draw links
@@ -161,14 +136,13 @@ const SankeyDiagram: React.FC<SankeyProps> = ({ data }) => {
       .style("stroke-opacity", 0.2)
       .style("fill", "none");
 
-    // Add link hover effect
+    // Add hover effect for links
     link
       .on("mouseover", function () {
         d3.select(this).style("stroke", "#1849a9").style("stroke-opacity", 0.7);
       })
       .on("mouseout", function () {
-        const isHighlighted = d3.select(this).classed("permanent-highlight");
-        if (!isHighlighted) {
+        if (!d3.select(this).classed("permanent-highlight")) {
           d3.select(this).style("stroke", "gray").style("stroke-opacity", 0.2);
         }
       });
@@ -222,7 +196,18 @@ const SankeyDiagram: React.FC<SankeyProps> = ({ data }) => {
       .style("font-size", "12px")
       .style("cursor", "pointer");
 
-    // Node interaction handlers
+    // Add hover effect for nodes
+    node
+      .on("mouseover", function (event, d) {
+        highlightRelevantPaths(d as SankeyNode, false); // Highlight relevant paths on hover
+        d3.select(this).select("rect").style("fill-opacity", 1); // Highlight the node itself
+      })
+      .on("mouseout", function () {
+        link.style("stroke", "gray").style("stroke-opacity", 0.2); // Reset link highlights
+        node.selectAll("rect").style("fill-opacity", 0.9); // Reset node opacity
+      });
+
+    // Highlight relevant paths (nodes and links)
     const highlightRelevantPaths = (node: SankeyNode, isPermanent: boolean) => {
       const relevantNodes = new Set<SankeyNode>();
       const relevantLinks = new Set<SankeyLink>();
@@ -254,60 +239,17 @@ const SankeyDiagram: React.FC<SankeyProps> = ({ data }) => {
           relevantLinks.has(l as SankeyLink) ? 0.7 : 0.2
         );
     };
-
-    // Node event handlers
-    node
-      .on("mouseover", function (event, d) {
-        const isPermanentHighlightActive =
-          svg.selectAll(".permanent-highlight").size() > 0;
-        if (!isPermanentHighlightActive) {
-          highlightRelevantPaths(d as SankeyNode, false);
-          d3.select(this)
-            .selectAll(".left-border, .right-border")
-            .style("display", "block");
-        }
-      })
-      .on("mouseout", function () {
-        const isPermanentHighlightActive =
-          svg.selectAll(".permanent-highlight").size() > 0;
-        if (!isPermanentHighlightActive) {
-          link.style("stroke", "gray").style("stroke-opacity", 0.2);
-          node.selectAll("rect").style("fill-opacity", 0.9);
-          d3.select(this)
-            .selectAll(".left-border, .right-border")
-            .style("display", "none");
-        }
-      })
-      .on("click", function (event, d) {
-        const clickedNode = d as SankeyNode;
-        const isSelected = selectedNodesRef.current.includes(clickedNode);
-
-        if (isSelected) {
-          selectedNodesRef.current = selectedNodesRef.current.filter(
-            (n) => n !== clickedNode
-          );
-        } else {
-          selectedNodesRef.current.push(clickedNode);
-        }
-
-        if (selectedNodesRef.current.length === 0) {
-          // Reset all highlights
-          link.style("stroke", "gray").style("stroke-opacity", 0.2);
-          node.selectAll("rect").style("fill-opacity", 0.9);
-          node
-            .selectAll(".left-border, .right-border")
-            .style("display", "none");
-        } else {
-          // Highlight paths for all selected nodes
-          selectedNodesRef.current.forEach((n) =>
-            highlightRelevantPaths(n, true)
-          );
-        }
-      });
-  }, [data]);
+  }, [data, searchQuery]);
 
   return (
     <div className="w-full overflow-x-auto">
+      <input
+        type="text"
+        placeholder="Search nodes"
+        className="mb-4 p-2 border rounded-lg"
+        value={searchQuery}
+        onChange={(e) => setSearchQuery(e.target.value)}
+      />
       <svg ref={svgRef} className="min-w-[1280px]" />
     </div>
   );
