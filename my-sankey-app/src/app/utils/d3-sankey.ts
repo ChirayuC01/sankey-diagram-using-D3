@@ -21,7 +21,7 @@ export function d3Sankey() { // Rename the function as well for consistency
     }
 
     interface Sankey {
-        nodeWidth(_: number): Sankey | number;
+        nodeWidth(_: number): Sankey | number | any;
         nodePadding(_: number): Sankey | number;
         nodes(_: Node[]): Sankey | Node[];
         links(_: Link[]): Sankey | Link[];

@@ -6,7 +6,7 @@ import { d3Sankey } from "../utils/d3-sankey";
 interface SankeyNode extends d3.SimulationNodeDatum {
   name: string;
   column: number;
-  x?: any;
+  x: number;
   y?: number;
   dx?: number;
   dy?: number;
@@ -58,63 +58,65 @@ const SankeyDiagram: React.FC<SankeyProps> = ({ data }) => {
     const nodeColumns = new Map<string, number>();
     const processedNodes = new Set<string>();
 
-    const calculateColumn = (nodeName: string, column = 0) => {
-      if (processedNodes.has(nodeName)) return;
-      processedNodes.add(nodeName);
-      nodeColumns.set(nodeName, column);
-
-      // Find all targets of this node
-      data.links
-        .filter((link) => link.source === nodeName)
-        .forEach((link) => {
-          calculateColumn(link.target, column + 1);
-        });
-    };
-
-    // Find start nodes (nodes that are only sources, never targets)
+    // Find start nodes and end nodes
     const startNodes = new Set(data.nodes.map((n) => n.name));
     data.links.forEach((link) => {
       startNodes.delete(link.target);
     });
 
-    // Calculate columns starting from each start node
-    startNodes.forEach((nodeName) => {
-      calculateColumn(nodeName);
+    const endNodes = new Set(data.nodes.map((n) => n.name));
+    data.links.forEach((link) => {
+      endNodes.delete(link.source);
     });
 
-    // Create Sankey generator
+    // Calculate maximum column number
+    let maxColumn = 0;
+    data.nodes.forEach((node) => {
+      const col = nodeColumns.get(node.name) || 0;
+      maxColumn = Math.max(maxColumn, col);
+    });
+
+    // Create node map for quick lookups
+    const nodeMap = new Map<string, SankeyNode>();
+
+    // Initialize sankeyData with proper x values
+    const sankeyData = {
+      nodes: data.nodes.map((node) => {
+        const column = nodeColumns.get(node.name) || 0;
+        const xPosition = (column * (width - 200)) / Math.max(1, maxColumn);
+
+        const sankeyNode: SankeyNode = {
+          name: node.name,
+          column: column,
+          x: xPosition,
+          sourceLinks: [],
+          targetLinks: [],
+          value: 0,
+        };
+
+        nodeMap.set(node.name, sankeyNode);
+        return sankeyNode;
+      }),
+      links: [] as SankeyLink[],
+    };
+
+    // Process links after all nodes are created
+    sankeyData.links = data.links.map((link) => ({
+      source: nodeMap.get(link.source)!,
+      target: nodeMap.get(link.target)!,
+      value: Number(link.value) || 1, // Default to 1 if value is not provided
+    }));
+
+    // Create and configure the Sankey generator
     const sankey = d3Sankey()
       .nodeWidth(200)
       .nodePadding(20)
       .size([width, height]);
 
-    // Process data
-    const nodeMap: { [key: string]: SankeyNode } = {};
-    data.nodes.forEach((node) => {
-      nodeMap[node.name] = {
-        name: node.name,
-        column: nodeColumns.get(node.name) || 0,
-        sourceLinks: [], // Initialize as an empty array
-        targetLinks: [], // Initialize as an empty array
-      } as SankeyNode;
-    });
-
-    const sankeyData = {
-      nodes: data.nodes.map((node) => ({
-        name: node.name,
-        column: nodeColumns.get(node.name) || 0,
-      })) as SankeyNode[],
-      links: data.links
-        .filter((link) => nodeMap[link.source] && nodeMap[link.target])
-        .map((link) => ({
-          source: nodeMap[link.source],
-          target: nodeMap[link.target],
-          value: Number(link.value),
-        })) as SankeyLink[],
-    };
+    // Apply the layout
+    sankey.nodes(sankeyData.nodes).links(sankeyData.links).layout(32);
     console.log("data---", data);
     console.log("sankeyData.nodes---", sankeyData.nodes);
-    sankey.nodes(sankeyData.nodes).links(sankeyData.links).layout(32);
 
     // Draw links
     const link = svg
