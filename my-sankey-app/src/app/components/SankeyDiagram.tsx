@@ -47,7 +47,8 @@ const SankeyDiagram: React.FC<SankeyProps> = ({ data }) => {
   const [highlightedNodes, setHighlightedNodes] = useState<Set<string>>(
     new Set()
   );
-  const [searchQuery, setSearchQuery] = useState<string>("");
+  const [permanentlyHighlightedNodes, setPermanentlyHighlightedNodes] =
+    useState<Set<string>>(new Set());
 
   useEffect(() => {
     if (!svgRef.current || !data) return;
@@ -136,17 +137,6 @@ const SankeyDiagram: React.FC<SankeyProps> = ({ data }) => {
       .style("stroke-opacity", 0.2)
       .style("fill", "none");
 
-    // Add hover effect for links
-    link
-      .on("mouseover", function () {
-        d3.select(this).style("stroke", "#1849a9").style("stroke-opacity", 0.7);
-      })
-      .on("mouseout", function () {
-        if (!d3.select(this).classed("permanent-highlight")) {
-          d3.select(this).style("stroke", "gray").style("stroke-opacity", 0.2);
-        }
-      });
-
     // Draw nodes
     const node = svg
       .append("g")
@@ -196,15 +186,19 @@ const SankeyDiagram: React.FC<SankeyProps> = ({ data }) => {
       .style("font-size", "12px")
       .style("cursor", "pointer");
 
-    // Add hover effect for nodes
+    // Add hover and click effects for nodes
     node
       .on("mouseover", function (event, d) {
         highlightRelevantPaths(d as SankeyNode, false); // Highlight relevant paths on hover
         d3.select(this).select("rect").style("fill-opacity", 1); // Highlight the node itself
       })
       .on("mouseout", function () {
-        link.style("stroke", "gray").style("stroke-opacity", 0.2); // Reset link highlights
-        node.selectAll("rect").style("fill-opacity", 0.9); // Reset node opacity
+        if (!permanentlyHighlightedNodes.size) {
+          resetHighlights();
+        }
+      })
+      .on("click", function (event, d) {
+        togglePermanentHighlight(d as SankeyNode);
       });
 
     // Highlight relevant paths (nodes and links)
@@ -231,6 +225,10 @@ const SankeyDiagram: React.FC<SankeyProps> = ({ data }) => {
         relevantNodes.has(n as SankeyNode) ? 1 : 0.9
       );
 
+      d3.selectAll(".left-border, .right-border").style("display", (n) =>
+        relevantNodes.has(n as SankeyNode) ? "block" : "none"
+      );
+
       link
         .style("stroke", (l) =>
           relevantLinks.has(l as SankeyLink) ? "#1849a9" : "gray"
@@ -239,17 +237,28 @@ const SankeyDiagram: React.FC<SankeyProps> = ({ data }) => {
           relevantLinks.has(l as SankeyLink) ? 0.7 : 0.2
         );
     };
-  }, [data, searchQuery]);
+
+    const resetHighlights = () => {
+      d3.selectAll(".node rect").style("fill-opacity", 0.9);
+      d3.selectAll(".left-border, .right-border").style("display", "none");
+      link.style("stroke", "gray").style("stroke-opacity", 0.2);
+    };
+
+    const togglePermanentHighlight = (node: SankeyNode) => {
+      const newHighlightedNodes = new Set(permanentlyHighlightedNodes);
+      if (newHighlightedNodes.has(node.name)) {
+        newHighlightedNodes.delete(node.name);
+        resetHighlights();
+      } else {
+        newHighlightedNodes.add(node.name);
+        highlightRelevantPaths(node, true);
+      }
+      setPermanentlyHighlightedNodes(newHighlightedNodes);
+    };
+  }, [data, permanentlyHighlightedNodes]);
 
   return (
     <div className="w-full overflow-x-auto">
-      <input
-        type="text"
-        placeholder="Search nodes"
-        className="mb-4 p-2 border rounded-lg"
-        value={searchQuery}
-        onChange={(e) => setSearchQuery(e.target.value)}
-      />
       <svg ref={svgRef} className="min-w-[1280px]" />
     </div>
   );
