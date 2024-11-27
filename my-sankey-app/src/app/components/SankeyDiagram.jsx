@@ -3,52 +3,10 @@ import React, { useEffect, useRef, useState } from "react";
 import * as d3 from "d3";
 import { d3Sankey } from "../utils/d3-sankey";
 
-// Define types for the Sankey diagram
-interface CustomSankey {
-  nodeWidth(width: number): CustomSankey;
-  nodePadding(padding: number): CustomSankey;
-  size(size: [number, number]): CustomSankey;
-  nodes(nodes: any[]): CustomSankey;
-  links(links: any[]): CustomSankey;
-  layout(iterations: number): CustomSankey;
-}
-
-interface SankeyNode extends d3.SimulationNodeDatum {
-  name: string;
-  column: number;
-  x: number;
-  y?: number;
-  dx?: number;
-  dy?: number;
-  sourceLinks?: SankeyLink[];
-  targetLinks?: SankeyLink[];
-  value?: number;
-}
-
-interface SankeyLink {
-  source: SankeyNode;
-  target: SankeyNode;
-  value: number;
-  sy?: number;
-  ty?: number;
-  dy?: number;
-}
-
-interface SankeyProps {
-  data: {
-    nodes: Array<{ name: string }>;
-    links: Array<{ source: string; target: string; value: string | number }>;
-  };
-}
-
-const SankeyDiagram: React.FC<SankeyProps> = ({ data }) => {
-  const svgRef = useRef<SVGSVGElement>(null);
-  const selectedNodesRef = useRef<SankeyNode[]>([]);
-  const [highlightedNodes, setHighlightedNodes] = useState<Set<string>>(
-    new Set()
-  );
+const SankeyDiagram = ({ data }) => {
+  const svgRef = useRef(null);
   const [permanentlyHighlightedNodes, setPermanentlyHighlightedNodes] =
-    useState<Set<string>>(new Set());
+    useState(new Set());
 
   useEffect(() => {
     if (!svgRef.current || !data) return;
@@ -70,11 +28,11 @@ const SankeyDiagram: React.FC<SankeyProps> = ({ data }) => {
       .attr("transform", `translate(${margin.left},${margin.top})`);
 
     // Initialize node map for quick lookups
-    const nodeMap = new Map<string, SankeyNode>();
+    const nodeMap = new Map();
 
     const sankeyData = {
       nodes: data.nodes.map((node) => {
-        const sankeyNode: SankeyNode = {
+        const sankeyNode = {
           name: node.name,
           column: 0,
           x: 0,
@@ -86,14 +44,14 @@ const SankeyDiagram: React.FC<SankeyProps> = ({ data }) => {
         return sankeyNode;
       }),
       links: data.links.map((link) => ({
-        source: nodeMap.get(link.source)!,
-        target: nodeMap.get(link.target)!,
+        source: nodeMap.get(link.source),
+        target: nodeMap.get(link.target),
         value: Number(link.value) || 1,
-      })) as SankeyLink[],
+      })),
     };
 
     // Create and configure the Sankey generator
-    const sankey = d3Sankey() as CustomSankey;
+    const sankey = d3Sankey();
     sankey
       .nodeWidth(200)
       .nodePadding(20)
@@ -109,7 +67,7 @@ const SankeyDiagram: React.FC<SankeyProps> = ({ data }) => {
     });
 
     // Define a custom path generator for links
-    const sankeyLinkPath = (link: SankeyLink) => {
+    const sankeyLinkPath = (link) => {
       const sourceX = (link.source.x || 0) + 200;
       const sourceY = link.sy || 0;
       const targetX = link.target.x || 0;
@@ -131,7 +89,7 @@ const SankeyDiagram: React.FC<SankeyProps> = ({ data }) => {
       .enter()
       .append("path")
       .attr("class", "link")
-      .attr("d", (d) => sankeyLinkPath(d as SankeyLink))
+      .attr("d", (d) => sankeyLinkPath(d))
       .style("stroke-width", (d) => Math.max(1, d.dy || 1))
       .style("stroke", "gray")
       .style("stroke-opacity", 0.2)
@@ -189,8 +147,8 @@ const SankeyDiagram: React.FC<SankeyProps> = ({ data }) => {
     // Add hover and click effects for nodes
     node
       .on("mouseover", function (event, d) {
-        highlightRelevantPaths(d as SankeyNode, false); // Highlight relevant paths on hover
-        d3.select(this).select("rect").style("fill-opacity", 1); // Highlight the node itself
+        highlightRelevantPaths(d, false);
+        d3.select(this).select("rect").style("fill-opacity", 1);
       })
       .on("mouseout", function () {
         if (!permanentlyHighlightedNodes.size) {
@@ -198,15 +156,14 @@ const SankeyDiagram: React.FC<SankeyProps> = ({ data }) => {
         }
       })
       .on("click", function (event, d) {
-        togglePermanentHighlight(d as SankeyNode);
+        togglePermanentHighlight(d);
       });
 
-    // Highlight relevant paths (nodes and links)
-    const highlightRelevantPaths = (node: SankeyNode, isPermanent: boolean) => {
-      const relevantNodes = new Set<SankeyNode>();
-      const relevantLinks = new Set<SankeyLink>();
+    const highlightRelevantPaths = (node, isPermanent) => {
+      const relevantNodes = new Set();
+      const relevantLinks = new Set();
 
-      const traverse = (currentNode: SankeyNode, upstream: boolean) => {
+      const traverse = (currentNode, upstream) => {
         relevantNodes.add(currentNode);
         const links = upstream
           ? currentNode.targetLinks
@@ -220,22 +177,17 @@ const SankeyDiagram: React.FC<SankeyProps> = ({ data }) => {
       traverse(node, true);
       traverse(node, false);
 
-      // Update visual states
       d3.selectAll(".node rect").style("fill-opacity", (n) =>
-        relevantNodes.has(n as SankeyNode) ? 1 : 0.9
+        relevantNodes.has(n) ? 1 : 0.9
       );
 
       d3.selectAll(".left-border, .right-border").style("display", (n) =>
-        relevantNodes.has(n as SankeyNode) ? "block" : "none"
+        relevantNodes.has(n) ? "block" : "none"
       );
 
       link
-        .style("stroke", (l) =>
-          relevantLinks.has(l as SankeyLink) ? "#1849a9" : "gray"
-        )
-        .style("stroke-opacity", (l) =>
-          relevantLinks.has(l as SankeyLink) ? 0.7 : 0.2
-        );
+        .style("stroke", (l) => (relevantLinks.has(l) ? "#1849a9" : "gray"))
+        .style("stroke-opacity", (l) => (relevantLinks.has(l) ? 0.7 : 0.2));
     };
 
     const resetHighlights = () => {
@@ -244,7 +196,7 @@ const SankeyDiagram: React.FC<SankeyProps> = ({ data }) => {
       link.style("stroke", "gray").style("stroke-opacity", 0.2);
     };
 
-    const togglePermanentHighlight = (node: SankeyNode) => {
+    const togglePermanentHighlight = (node) => {
       const newHighlightedNodes = new Set(permanentlyHighlightedNodes);
       if (newHighlightedNodes.has(node.name)) {
         newHighlightedNodes.delete(node.name);
