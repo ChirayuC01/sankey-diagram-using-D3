@@ -173,7 +173,8 @@ export const Sankey = ({ width, height, data }) => {
           width={sankeyGenerator.nodeWidth()}
           x={node.x0}
           y={node.y0}
-          fill="#eff8ff"
+          // fill="#eff8ff"
+          fill={isSelected ? "#96caf2" : "#eff8ff"}
           fillOpacity={isSelected || isHovered || isRelevant ? 0.8 : 0.5}
           rx={2}
           stroke="none"
@@ -227,6 +228,7 @@ export const Sankey = ({ width, height, data }) => {
           dy="0.35em"
           fontSize={10}
           fill="black"
+          // fontWeight="bold"
         >
           {node.name}
         </text>
