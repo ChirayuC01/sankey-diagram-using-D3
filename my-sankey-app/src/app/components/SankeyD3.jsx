@@ -7,6 +7,7 @@ const MARGIN_X = 5;
 
 export const Sankey = ({ width, height, data }) => {
   const [hoveredNode, setHoveredNode] = useState(null); // State for the currently hovered node
+  const [selectedNode, setSelectedNode] = useState(null); // State for the currently selected node
   const fixedHeight = 30; // Fixed height for nodes
   const verticalSpacing = 20; // Fixed vertical spacing between nodes
 
@@ -61,7 +62,6 @@ export const Sankey = ({ width, height, data }) => {
     const visitedLinks = new Set();
 
     const traverse = (node, direction) => {
-      // if (visitedNodes.has(node)) return; // Skip already visited nodes (NOT REQUIRED)
       visitedNodes.add(node);
 
       links.forEach((link) => {
@@ -83,10 +83,7 @@ export const Sankey = ({ width, height, data }) => {
         }
       });
     };
-    console.log("visitedLinks--", visitedLinks);
-    console.log("visitedNodes--", visitedNodes);
-    // console.log("traverse(startNode, downstream);--",traverse(startNode, "downstream"))
-    // console.log("traverse(startNode, upstream);--",traverse(startNode, "upstream"))
+
     // Start traversal in both directions
     traverse(startNode, "downstream");
     traverse(startNode, "upstream");
@@ -95,7 +92,6 @@ export const Sankey = ({ width, height, data }) => {
   };
 
   const handleMouseEnter = (node) => {
-    console.log("node--", node);
     setHoveredNode(node);
   };
 
@@ -103,14 +99,21 @@ export const Sankey = ({ width, height, data }) => {
     setHoveredNode(null);
   };
 
+  const handleClick = (node) => {
+    setSelectedNode(node === selectedNode ? null : node); // Toggle selection
+  };
+
   // Highlight connected nodes and links
-  const { visitedNodes, visitedLinks } = hoveredNode
+  const { visitedNodes, visitedLinks } = selectedNode
+    ? getConnectedNodesAndLinks(selectedNode)
+    : hoveredNode
     ? getConnectedNodesAndLinks(hoveredNode)
     : { visitedNodes: new Set(), visitedLinks: new Set() };
 
   // Nodes
   const allNodes = nodes.map((node) => {
     const isHovered = hoveredNode === node;
+    const isSelected = selectedNode === node;
     const isRelevant = visitedNodes.has(node);
 
     return (
@@ -118,6 +121,7 @@ export const Sankey = ({ width, height, data }) => {
         key={node.index}
         onMouseEnter={() => handleMouseEnter(node)}
         onMouseLeave={handleMouseLeave}
+        onClick={() => handleClick(node)}
       >
         <rect
           height={fixedHeight}
@@ -125,7 +129,7 @@ export const Sankey = ({ width, height, data }) => {
           x={node.x0}
           y={node.y0}
           stroke="black"
-          fill={isHovered || isRelevant ? "blue" : "grey"}
+          fill={isSelected || isHovered || isRelevant ? "blue" : "grey"}
           fillOpacity={0.8}
           rx={2}
         />
