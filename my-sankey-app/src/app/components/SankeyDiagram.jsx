@@ -147,8 +147,10 @@ const SankeyDiagram = ({ data }) => {
     // Add hover and click effects for nodes
     node
       .on("mouseover", function (event, d) {
+        // if (permanentlyHighlightedNodes.size == 0) {
         highlightRelevantPaths(d, false);
         d3.select(this).select("rect").style("fill-opacity", 1);
+        // }
       })
       .on("mouseout", function () {
         if (!permanentlyHighlightedNodes.size) {
