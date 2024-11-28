@@ -7,7 +7,7 @@ const MARGIN_X = 5;
 
 export const Sankey = ({ width, height, data }) => {
   const [hoveredNode, setHoveredNode] = useState(null); // Hover state
-  const [selectedNode, setSelectedNode] = useState(null); // Click state
+  const [selectedNodes, setSelectedNodes] = useState([]); // List of selected nodes
   const fixedHeight = 30; // Fixed height for nodes
   const verticalSpacing = 20; // Fixed vertical spacing between nodes
 
@@ -22,25 +22,6 @@ export const Sankey = ({ width, height, data }) => {
     .nodeAlign(sankeyCenter);
 
   const { nodes, links } = sankeyGenerator(data);
-
-  // Adjust positions for filtered nodes
-  const adjustNodePositions = (nodes) => {
-    const filteredColumns = {};
-
-    nodes.forEach((node) => {
-      if (!filteredColumns[node.x0]) {
-        filteredColumns[node.x0] = [];
-      }
-      filteredColumns[node.x0].push(node);
-    });
-
-    Object.entries(filteredColumns).forEach(([x0, columnNodes]) => {
-      columnNodes.forEach((node, index) => {
-        node.y0 = MARGIN_Y + index * (fixedHeight + verticalSpacing);
-        node.y1 = node.y0 + fixedHeight;
-      });
-    });
-  };
 
   // Collect connected nodes and links recursively
   const getConnectedNodesAndLinks = (startNode) => {
@@ -76,6 +57,10 @@ export const Sankey = ({ width, height, data }) => {
     return { visitedNodes, visitedLinks };
   };
 
+  const intersectSets = (setA, setB) => {
+    return new Set([...setA].filter((item) => setB.has(item)));
+  };
+
   const handleMouseEnter = (node) => {
     setHoveredNode(node);
   };
@@ -85,23 +70,70 @@ export const Sankey = ({ width, height, data }) => {
   };
 
   const handleClick = (node) => {
-    setSelectedNode(node === selectedNode ? null : node);
+    if (selectedNodes.includes(node)) {
+      // Deselect node if already selected
+      setSelectedNodes(selectedNodes.filter((n) => n !== node));
+    } else {
+      // Add node to selection
+      setSelectedNodes([...selectedNodes, node]);
+    }
   };
 
-  // Determine nodes and links to display based on selection or hover
-  // Determine nodes and links to display based on selection or hover
-  const { visitedNodes, visitedLinks } = selectedNode
-    ? getConnectedNodesAndLinks(selectedNode)
-    : hoveredNode
-    ? getConnectedNodesAndLinks(hoveredNode)
-    : { visitedNodes: new Set(), visitedLinks: new Set() }; // Default to empty sets
+  // Determine nodes and links to display based on selection
+  let visitedNodes = new Set(); // Default to no nodes
+  let visitedLinks = new Set(); // Default to no links
 
-  const filteredNodes = selectedNode
-    ? nodes.filter((node) => visitedNodes.has(node))
-    : nodes;
-  const filteredLinks = selectedNode
-    ? links.filter((link) => visitedLinks.has(link))
-    : links;
+  if (selectedNodes.length > 0) {
+    selectedNodes.forEach((node, index) => {
+      const { visitedNodes: nodesForCurrent, visitedLinks: linksForCurrent } =
+        getConnectedNodesAndLinks(node);
+      if (index === 0) {
+        visitedNodes = nodesForCurrent;
+        visitedLinks = linksForCurrent;
+      } else {
+        visitedNodes = intersectSets(visitedNodes, nodesForCurrent);
+        visitedLinks = intersectSets(visitedLinks, linksForCurrent);
+      }
+    });
+  } else {
+    // Highlight nodes and links on hover only
+    visitedNodes = new Set(nodes);
+    visitedLinks = new Set(links);
+  }
+
+  // Highlight nodes and links on hover without filtering them out
+  let hoveredNodes = new Set();
+  let hoveredLinks = new Set();
+
+  if (hoveredNode) {
+    const { visitedNodes: nodesForHover, visitedLinks: linksForHover } =
+      getConnectedNodesAndLinks(hoveredNode);
+    hoveredNodes = nodesForHover;
+    hoveredLinks = linksForHover;
+  }
+
+  // Filter nodes and links to display only relevant ones on click
+  const filteredNodes = nodes.filter((node) => visitedNodes.has(node));
+  const filteredLinks = links.filter((link) => visitedLinks.has(link));
+
+  // Adjust positions dynamically for filtered nodes
+  const adjustNodePositions = (filteredNodes) => {
+    const filteredColumns = {};
+
+    filteredNodes.forEach((node) => {
+      if (!filteredColumns[node.x0]) {
+        filteredColumns[node.x0] = [];
+      }
+      filteredColumns[node.x0].push(node);
+    });
+
+    Object.entries(filteredColumns).forEach(([x0, columnNodes]) => {
+      columnNodes.forEach((node, index) => {
+        node.y0 = MARGIN_Y + index * (fixedHeight + verticalSpacing);
+        node.y1 = node.y0 + fixedHeight;
+      });
+    });
+  };
 
   adjustNodePositions(filteredNodes);
 
@@ -119,8 +151,8 @@ export const Sankey = ({ width, height, data }) => {
 
   // Render nodes
   const allNodes = filteredNodes.map((node) => {
-    const isHovered = hoveredNode === node;
-    const isSelected = selectedNode === node;
+    const isHovered = hoveredNodes.has(node);
+    const isSelected = selectedNodes.includes(node);
     const isRelevant = visitedNodes.has(node);
 
     return (
@@ -129,7 +161,7 @@ export const Sankey = ({ width, height, data }) => {
         onMouseEnter={() => handleMouseEnter(node)}
         onMouseLeave={handleMouseLeave}
         onClick={() => handleClick(node)}
-        style={{ cursor: "pointer" }} // Set cursor to pointer on hover
+        style={{ cursor: "pointer" }}
       >
         <rect
           height={fixedHeight}
@@ -137,8 +169,16 @@ export const Sankey = ({ width, height, data }) => {
           x={node.x0}
           y={node.y0}
           stroke="black"
-          fill={isSelected || isHovered || isRelevant ? "blue" : "grey"}
-          fillOpacity={0.8}
+          fill={
+            isSelected
+              ? "blue"
+              : isHovered
+              ? "lightblue"
+              : isRelevant
+              ? "grey"
+              : "lightgrey"
+          }
+          fillOpacity={isSelected || isHovered || isRelevant ? 0.8 : 0.5}
           rx={2}
         />
         <text
@@ -157,17 +197,17 @@ export const Sankey = ({ width, height, data }) => {
 
   // Render links
   const allLinks = filteredLinks.map((link, i) => {
+    const isHovered = hoveredLinks.has(link);
     const isRelevant = visitedLinks.has(link);
     const path = customLinkGenerator(link);
-    console.log("visitedLinks", visitedLinks);
     return (
       <path
         key={i}
         d={path}
-        stroke={isRelevant ? "blue" : "grey"}
+        stroke={isHovered ? "lightblue" : isRelevant ? "blue" : "grey"}
         fill="none"
-        strokeOpacity={0.5}
-        strokeWidth={isRelevant ? 3 : 1}
+        strokeOpacity={isHovered || isRelevant ? 0.8 : 0.3}
+        strokeWidth={isHovered || isRelevant ? 3 : 1}
       />
     );
   });
