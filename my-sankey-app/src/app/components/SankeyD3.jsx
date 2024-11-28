@@ -129,6 +129,7 @@ export const Sankey = ({ width, height, data }) => {
         onMouseEnter={() => handleMouseEnter(node)}
         onMouseLeave={handleMouseLeave}
         onClick={() => handleClick(node)}
+        style={{ cursor: "pointer" }} // Set cursor to pointer on hover
       >
         <rect
           height={fixedHeight}
