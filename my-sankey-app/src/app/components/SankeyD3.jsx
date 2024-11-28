@@ -155,6 +155,10 @@ export const Sankey = ({ width, height, data }) => {
     const isSelected = selectedNodes.includes(node);
     const isRelevant = visitedNodes.has(node);
 
+    // Check if the node is in one of the first three columns
+    const isInFirstThreeColumns =
+      node.x0 < MARGIN_X + 5 * sankeyGenerator.nodeWidth();
+
     return (
       <g
         key={node.index}
@@ -163,24 +167,59 @@ export const Sankey = ({ width, height, data }) => {
         onClick={() => handleClick(node)}
         style={{ cursor: "pointer" }}
       >
+        {/* Node rectangle */}
         <rect
           height={fixedHeight}
           width={sankeyGenerator.nodeWidth()}
           x={node.x0}
           y={node.y0}
-          stroke="black"
-          fill={
-            isSelected
-              ? "blue"
-              : isHovered
-              ? "lightblue"
-              : isRelevant
-              ? "grey"
-              : "lightgrey"
-          }
+          fill="#eff8ff"
           fillOpacity={isSelected || isHovered || isRelevant ? 0.8 : 0.5}
           rx={2}
+          stroke="none"
         />
+        {/* Add left and right borders on hover */}
+        {isHovered && (
+          <>
+            {/* Left border */}
+            <line
+              x1={node.x0}
+              y1={node.y0}
+              x2={node.x0}
+              y2={node.y1}
+              stroke="#1849a9"
+              strokeWidth="1"
+            />
+            {/* Right border */}
+            <line
+              x1={node.x0 + sankeyGenerator.nodeWidth()}
+              y1={node.y0}
+              x2={node.x0 + sankeyGenerator.nodeWidth()}
+              y2={node.y1}
+              stroke="#1849a9"
+              strokeWidth="1"
+            />
+          </>
+        )}
+        {/* Arrow on the right for nodes in the first three columns */}
+        {isInFirstThreeColumns && (
+          <path
+            d={` 
+            M${node.x0 + sankeyGenerator.nodeWidth()},${
+              node.y0 + fixedHeight / 2
+            }
+            L${node.x0 + sankeyGenerator.nodeWidth() + 6},${
+              node.y0 + fixedHeight / 2 - 3
+            }
+            L${node.x0 + sankeyGenerator.nodeWidth() + 6},${
+              node.y0 + fixedHeight / 2 + 3
+            }
+            Z
+          `}
+            fill="#808080"
+          />
+        )}
+        {/* Node text */}
         <text
           x={node.x0 + sankeyGenerator.nodeWidth() / 2}
           y={node.y0 + fixedHeight / 2}
@@ -204,10 +243,10 @@ export const Sankey = ({ width, height, data }) => {
       <path
         key={i}
         d={path}
-        stroke={isHovered ? "lightblue" : isRelevant ? "blue" : "grey"}
+        stroke={isHovered ? "#1849a9" : isRelevant ? "#808080" : "#1849a9"}
         fill="none"
-        strokeOpacity={isHovered || isRelevant ? 0.8 : 0.3}
-        strokeWidth={isHovered || isRelevant ? 3 : 1}
+        strokeOpacity={isHovered || isRelevant ? 0.5 : 0.5}
+        strokeWidth={isHovered || isRelevant ? 1 : 1}
       />
     );
   });
