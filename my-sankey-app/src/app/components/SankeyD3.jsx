@@ -6,14 +6,14 @@ const MARGIN_Y = 25;
 const MARGIN_X = 5;
 
 export const Sankey = ({ width, height, data }) => {
-  const [hoveredNode, setHoveredNode] = useState(null); // State for the currently hovered node
-  const [selectedNode, setSelectedNode] = useState(null); // State for the currently selected node
+  const [hoveredNode, setHoveredNode] = useState(null); // Hover state
+  const [selectedNode, setSelectedNode] = useState(null); // Click state
   const fixedHeight = 30; // Fixed height for nodes
   const verticalSpacing = 20; // Fixed vertical spacing between nodes
 
   const sankeyGenerator = sankey()
     .nodeWidth(180)
-    .nodePadding(10) // Temporarily used; replaced later
+    .nodePadding(10)
     .extent([
       [MARGIN_X, MARGIN_Y],
       [width - MARGIN_X, height - MARGIN_Y],
@@ -23,40 +23,26 @@ export const Sankey = ({ width, height, data }) => {
 
   const { nodes, links } = sankeyGenerator(data);
 
-  // Group nodes by their column (x0 position)
-  const columns = {};
-  nodes.forEach((node) => {
-    if (!columns[node.x0]) {
-      columns[node.x0] = [];
-    }
-    columns[node.x0].push(node);
-  });
+  // Adjust positions for filtered nodes
+  const adjustNodePositions = (nodes) => {
+    const filteredColumns = {};
 
-  // Set y0 and y1 for nodes in all columns with fixed spacing
-  Object.entries(columns).forEach(([x0, columnNodes]) => {
-    columnNodes.sort((a, b) => a.y0 - b.y0); // Ensure nodes are sorted in their initial layout order
-
-    columnNodes.forEach((node, index) => {
-      node.y0 = MARGIN_Y + index * (fixedHeight + verticalSpacing); // Fixed spacing
-      node.y1 = node.y0 + fixedHeight; // Fixed height
+    nodes.forEach((node) => {
+      if (!filteredColumns[node.x0]) {
+        filteredColumns[node.x0] = [];
+      }
+      filteredColumns[node.x0].push(node);
     });
-  });
 
-  // Adjust links to connect to the center of nodes
-  const customLinkGenerator = (link) => {
-    const sourceCenter = (link.source.y0 + link.source.y1) / 2; // Center of source node
-    const targetCenter = (link.target.y0 + link.target.y1) / 2; // Center of target node
-
-    const path = `
-      M${link.source.x1},${sourceCenter}
-      C${link.source.x1 + 50},${sourceCenter}
-       ${link.target.x0 - 50},${targetCenter}
-       ${link.target.x0},${targetCenter}
-    `;
-    return path;
+    Object.entries(filteredColumns).forEach(([x0, columnNodes]) => {
+      columnNodes.forEach((node, index) => {
+        node.y0 = MARGIN_Y + index * (fixedHeight + verticalSpacing);
+        node.y1 = node.y0 + fixedHeight;
+      });
+    });
   };
 
-  // Recursive function to collect directly/indirectly connected nodes and links
+  // Collect connected nodes and links recursively
   const getConnectedNodesAndLinks = (startNode) => {
     const visitedNodes = new Set();
     const visitedLinks = new Set();
@@ -71,7 +57,7 @@ export const Sankey = ({ width, height, data }) => {
           !visitedLinks.has(link)
         ) {
           visitedLinks.add(link);
-          traverse(link.target, "downstream"); // Continue downstream
+          traverse(link.target, "downstream");
         }
         if (
           direction === "upstream" &&
@@ -79,12 +65,11 @@ export const Sankey = ({ width, height, data }) => {
           !visitedLinks.has(link)
         ) {
           visitedLinks.add(link);
-          traverse(link.source, "upstream"); // Continue upstream
+          traverse(link.source, "upstream");
         }
       });
     };
 
-    // Start traversal in both directions
     traverse(startNode, "downstream");
     traverse(startNode, "upstream");
 
@@ -100,18 +85,40 @@ export const Sankey = ({ width, height, data }) => {
   };
 
   const handleClick = (node) => {
-    setSelectedNode(node === selectedNode ? null : node); // Toggle selection
+    setSelectedNode(node === selectedNode ? null : node);
   };
 
-  // Highlight connected nodes and links
+  // Determine nodes and links to display based on selection or hover
+  // Determine nodes and links to display based on selection or hover
   const { visitedNodes, visitedLinks } = selectedNode
     ? getConnectedNodesAndLinks(selectedNode)
     : hoveredNode
     ? getConnectedNodesAndLinks(hoveredNode)
-    : { visitedNodes: new Set(), visitedLinks: new Set() };
+    : { visitedNodes: new Set(), visitedLinks: new Set() }; // Default to empty sets
 
-  // Nodes
-  const allNodes = nodes.map((node) => {
+  const filteredNodes = selectedNode
+    ? nodes.filter((node) => visitedNodes.has(node))
+    : nodes;
+  const filteredLinks = selectedNode
+    ? links.filter((link) => visitedLinks.has(link))
+    : links;
+
+  adjustNodePositions(filteredNodes);
+
+  const customLinkGenerator = (link) => {
+    const sourceCenter = (link.source.y0 + link.source.y1) / 2;
+    const targetCenter = (link.target.y0 + link.target.y1) / 2;
+
+    return `
+      M${link.source.x1},${sourceCenter}
+      C${link.source.x1 + 50},${sourceCenter}
+       ${link.target.x0 - 50},${targetCenter}
+       ${link.target.x0},${targetCenter}
+    `;
+  };
+
+  // Render nodes
+  const allNodes = filteredNodes.map((node) => {
     const isHovered = hoveredNode === node;
     const isSelected = selectedNode === node;
     const isRelevant = visitedNodes.has(node);
@@ -147,11 +154,11 @@ export const Sankey = ({ width, height, data }) => {
     );
   });
 
-  // Links
-  const allLinks = links.map((link, i) => {
+  // Render links
+  const allLinks = filteredLinks.map((link, i) => {
     const isRelevant = visitedLinks.has(link);
     const path = customLinkGenerator(link);
-
+    console.log("visitedLinks", visitedLinks);
     return (
       <path
         key={i}
@@ -159,7 +166,7 @@ export const Sankey = ({ width, height, data }) => {
         stroke={isRelevant ? "blue" : "grey"}
         fill="none"
         strokeOpacity={0.5}
-        strokeWidth={isRelevant ? 3 : 1} // Highlight relevant links
+        strokeWidth={isRelevant ? 3 : 1}
       />
     );
   });
