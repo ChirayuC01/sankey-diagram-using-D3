@@ -23,7 +23,7 @@ export default function Home() {
 
   return (
     <div className="container mx-auto p-4">
-      <Sankey data={numericData} width={1280} height={800} />;
+      <Sankey data={numericData} width={1280} height={800} />
     </div>
   );
 }

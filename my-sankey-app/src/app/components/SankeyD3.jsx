@@ -86,6 +86,25 @@ export const Sankey = ({ width, height, data }) => {
 
   const handleSearchChange = (x0, value) => {
     setSearchText((prev) => ({ ...prev, [x0]: value }));
+
+    // Automatically update selectedNodes based on search text
+    const filteredNodesForColumn = nodes.filter(
+      (node) =>
+        node.x0 === x0 && node.name.toLowerCase().includes(value.toLowerCase())
+    );
+
+    // // Collect all nodes connected to filtered nodes
+    // let allRelevantNodes = new Set();
+    // let allRelevantLinks = new Set();
+
+    // filteredNodesForColumn.forEach((node) => {
+    //   const { visitedNodes: connectedNodes, visitedLinks: connectedLinks } =
+    //     getConnectedNodesAndLinks(node);
+    //   connectedNodes.forEach((n) => allRelevantNodes.add(n));
+    //   connectedLinks.forEach((l) => allRelevantLinks.add(l));
+    // });
+    console.log("filteredNodesForColumn--", filteredNodesForColumn);
+    getConnectedNodesAndLinks(Array.from(filteredNodesForColumn));
   };
 
   // Determine nodes and links to display based on selection
