@@ -92,6 +92,20 @@ export const Sankey = ({ width, height, data }) => {
   const handleSearchChange = (x0, value) => {
     setSearchText((prev) => ({ ...prev, [x0]: value }));
 
+    if (value.trim() === "") {
+      // Reset selected nodes for this column when the search bar is cleared
+      setSelectedNodes((prevSelectedNodes) =>
+        prevSelectedNodes.filter((node) => node.x0 !== x0)
+      );
+
+      // Reset filteredBySearch for this column
+      setFilteredBySearch({
+        nodes: new Set(),
+        links: new Set(),
+      });
+      return; // No need to filter when the search is cleared
+    }
+
     // Filter nodes for the specific column based on the search text
     const filteredNodesForColumn = nodes.filter(
       (node) =>
@@ -250,14 +264,6 @@ export const Sankey = ({ width, height, data }) => {
 
     // Sort columns by x0 to ensure correct title placement
     const sortedColumns = Object.keys(columns).sort((a, b) => a - b);
-    console.log(
-      "Title positions:",
-      sortedColumns.map((x0, index) => ({
-        x: parseFloat(x0) + sankeyGenerator.nodeWidth() / 2,
-        y: MARGIN_Y - 40,
-        text: columnTitles[index],
-      }))
-    );
     return sortedColumns.map((x0, index) => (
       <text
         key={`title-${x0}`}
