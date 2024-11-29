@@ -10,12 +10,13 @@ export const Sankey = ({ width, height, data }) => {
   const [selectedNodes, setSelectedNodes] = useState([]); // List of selected nodes
   const fixedHeight = 30; // Fixed height for nodes
   const verticalSpacing = 20; // Fixed vertical spacing between nodes
+  const TITLE_AND_SEARCH_MARGIN = 60; // Space for titles and search bars
 
   const sankeyGenerator = sankey()
     .nodeWidth(180)
     .nodePadding(10)
     .extent([
-      [MARGIN_X, MARGIN_Y],
+      [MARGIN_X, MARGIN_Y + TITLE_AND_SEARCH_MARGIN],
       [width - MARGIN_X, height - MARGIN_Y],
     ])
     .nodeId((node) => node.name)
@@ -129,7 +130,10 @@ export const Sankey = ({ width, height, data }) => {
 
     Object.entries(filteredColumns).forEach(([x0, columnNodes]) => {
       columnNodes.forEach((node, index) => {
-        node.y0 = MARGIN_Y + index * (fixedHeight + verticalSpacing);
+        node.y0 =
+          MARGIN_Y +
+          TITLE_AND_SEARCH_MARGIN +
+          index * (fixedHeight + verticalSpacing);
         node.y1 = node.y0 + fixedHeight;
       });
     });
@@ -147,6 +151,38 @@ export const Sankey = ({ width, height, data }) => {
        ${link.target.x0 - 50},${targetCenter}
        ${link.target.x0},${targetCenter}
     `;
+  };
+  const renderColumnTitles = () => {
+    const columnTitles = [
+      "Market Authority",
+      "FDF Manufacturer",
+      "API Manufacturer",
+      "Intermediate",
+    ];
+
+    // Group nodes by columns based on x0 positions
+    const columns = nodes.reduce((acc, node) => {
+      if (!acc[node.x0]) acc[node.x0] = [];
+      acc[node.x0].push(node);
+      return acc;
+    }, {});
+
+    // Sort columns by x0 to ensure correct title placement
+    const sortedColumns = Object.keys(columns).sort((a, b) => a - b);
+
+    return sortedColumns.map((x0, index) => (
+      <text
+        key={`title-${x0}`}
+        x={parseFloat(x0) + sankeyGenerator.nodeWidth() / 2} // Center title on column
+        y={MARGIN_Y - 0} // Position above search bars
+        textAnchor="middle"
+        fontSize={12}
+        fontWeight="bold"
+        fill="black"
+      >
+        {columnTitles[index]} {/* Use the title corresponding to the column */}
+      </text>
+    ));
   };
 
   // Render nodes
@@ -256,6 +292,7 @@ export const Sankey = ({ width, height, data }) => {
   return (
     <div>
       <svg width={width} height={height}>
+        {renderColumnTitles()}
         <g>{allLinks}</g>
         <g>{allNodes}</g>
       </svg>
