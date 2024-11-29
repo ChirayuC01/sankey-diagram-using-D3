@@ -1,5 +1,5 @@
 "use client";
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { sankey, sankeyCenter } from "d3-sankey";
 
 const MARGIN_Y = 25;
@@ -8,9 +8,14 @@ const MARGIN_X = 5;
 export const Sankey = ({ width, height, data }) => {
   const [hoveredNode, setHoveredNode] = useState(null); // Hover state
   const [selectedNodes, setSelectedNodes] = useState([]); // List of selected nodes
+  const [searchText, setSearchText] = useState({}); // State for search text per column
+  const [filteredBySearch, setFilteredBySearch] = useState({
+    nodes: new Set(),
+    links: new Set(),
+  });
   const fixedHeight = 30; // Fixed height for nodes
   const verticalSpacing = 20; // Fixed vertical spacing between nodes
-  const TITLE_AND_SEARCH_MARGIN = 60; // Space for titles and search bars
+  const TITLE_AND_SEARCH_MARGIN = 50; // Adjust as needed to account for title and search bar
 
   const sankeyGenerator = sankey()
     .nodeWidth(180)
@@ -71,23 +76,73 @@ export const Sankey = ({ width, height, data }) => {
   };
 
   const handleClick = (node) => {
+    const column = node.x0;
+
     if (selectedNodes.includes(node)) {
-      // Deselect node if already selected
+      // Deselect node if already selected and clear search for its column
       setSelectedNodes(selectedNodes.filter((n) => n !== node));
+      setSearchText((prev) => ({ ...prev, [column]: "" }));
     } else {
-      // Add node to selection
+      // Select node and set its label in the search bar for the column
       setSelectedNodes([...selectedNodes, node]);
+      setSearchText((prev) => ({ ...prev, [column]: node.name }));
     }
   };
 
-  // Determine nodes and links to display based on selection
+  const handleSearchChange = (x0, value) => {
+    setSearchText((prev) => ({ ...prev, [x0]: value }));
+
+    if (value.trim() === "") {
+      // Reset selected nodes for this column when the search bar is cleared
+      setSelectedNodes((prevSelectedNodes) =>
+        prevSelectedNodes.filter((node) => node.x0 !== x0)
+      );
+
+      // Reset filteredBySearch for this column
+      setFilteredBySearch({
+        nodes: new Set(),
+        links: new Set(),
+      });
+      return; // No need to filter when the search is cleared
+    }
+
+    // Filter nodes for the specific column based on the search text
+    const filteredNodesForColumn = nodes.filter(
+      (node) =>
+        node.x0 === x0 && node.name.toLowerCase().includes(value.toLowerCase())
+    );
+
+    // Collect all connected nodes and links for the filtered nodes
+    let allRelevantNodes = new Set();
+    let allRelevantLinks = new Set();
+
+    filteredNodesForColumn.forEach((node) => {
+      const { visitedNodes: connectedNodes, visitedLinks: connectedLinks } =
+        getConnectedNodesAndLinks(node);
+      connectedNodes.forEach((n) => allRelevantNodes.add(n));
+      connectedLinks.forEach((l) => allRelevantLinks.add(l));
+    });
+
+    // Update the state to reflect the search results
+    setFilteredBySearch({
+      nodes: allRelevantNodes,
+      links: allRelevantLinks,
+    });
+  };
+
+  // Determine nodes and links to display
   let visitedNodes = new Set(); // Default to no nodes
   let visitedLinks = new Set(); // Default to no links
 
-  if (selectedNodes.length > 0) {
+  if (
+    selectedNodes.length > 0 &&
+    Object.values(searchText).some((text) => text.trim() !== "")
+  ) {
+    // If both a node is selected and a search is active, intersect the two sets
     selectedNodes.forEach((node, index) => {
       const { visitedNodes: nodesForCurrent, visitedLinks: linksForCurrent } =
         getConnectedNodesAndLinks(node);
+
       if (index === 0) {
         visitedNodes = nodesForCurrent;
         visitedLinks = linksForCurrent;
@@ -96,8 +151,32 @@ export const Sankey = ({ width, height, data }) => {
         visitedLinks = intersectSets(visitedLinks, linksForCurrent);
       }
     });
+
+    // Intersect with nodes and links from the search results
+    if (filteredBySearch.nodes.size > 0) {
+      visitedNodes = intersectSets(visitedNodes, filteredBySearch.nodes);
+      visitedLinks = intersectSets(visitedLinks, filteredBySearch.links);
+    }
+  } else if (selectedNodes.length > 0) {
+    // If only nodes are selected
+    selectedNodes.forEach((node, index) => {
+      const { visitedNodes: nodesForCurrent, visitedLinks: linksForCurrent } =
+        getConnectedNodesAndLinks(node);
+
+      if (index === 0) {
+        visitedNodes = nodesForCurrent;
+        visitedLinks = linksForCurrent;
+      } else {
+        visitedNodes = intersectSets(visitedNodes, nodesForCurrent);
+        visitedLinks = intersectSets(visitedLinks, linksForCurrent);
+      }
+    });
+  } else if (Object.values(searchText).some((text) => text.trim() !== "")) {
+    // If there's an active search, display nodes and links filtered by search
+    visitedNodes = filteredBySearch.nodes;
+    visitedLinks = filteredBySearch.links;
   } else {
-    // Highlight nodes and links on hover only
+    // Default: Display all nodes and links
     visitedNodes = new Set(nodes);
     visitedLinks = new Set(links);
   }
@@ -113,9 +192,25 @@ export const Sankey = ({ width, height, data }) => {
     hoveredLinks = linksForHover;
   }
 
-  // Filter nodes and links to display only relevant ones on click
-  const filteredNodes = nodes.filter((node) => visitedNodes.has(node));
-  const filteredLinks = links.filter((link) => visitedLinks.has(link));
+  // // Filter nodes and links to display only relevant ones on click
+  // const filteredNodes = nodes.filter((node) => visitedNodes.has(node));
+  // Filter nodes based on search text for each column
+  const filteredNodes = nodes.filter((node) => {
+    const columnSearchText = searchText[node.x0] || "";
+    return (
+      node.name.toLowerCase().includes(columnSearchText.toLowerCase()) &&
+      visitedNodes.has(node)
+    );
+  });
+
+  // const filteredLinks = links.filter((link) => visitedLinks.has(link));
+  // Filter links based on filtered nodes
+  const filteredLinks = links.filter(
+    (link) =>
+      filteredNodes.includes(link.source) &&
+      filteredNodes.includes(link.target) &&
+      visitedLinks.has(link)
+  );
 
   // Adjust positions dynamically for filtered nodes
   const adjustNodePositions = (filteredNodes) => {
@@ -169,19 +264,46 @@ export const Sankey = ({ width, height, data }) => {
 
     // Sort columns by x0 to ensure correct title placement
     const sortedColumns = Object.keys(columns).sort((a, b) => a - b);
-
     return sortedColumns.map((x0, index) => (
       <text
         key={`title-${x0}`}
         x={parseFloat(x0) + sankeyGenerator.nodeWidth() / 2} // Center title on column
-        y={MARGIN_Y - 0} // Position above search bars
+        y={MARGIN_Y - 5} // Position above search bars
         textAnchor="middle"
-        fontSize={12}
+        fontSize={20}
         fontWeight="bold"
         fill="black"
       >
         {columnTitles[index]} {/* Use the title corresponding to the column */}
       </text>
+    ));
+  };
+
+  // Render search bars above each column
+  const renderSearchBars = () => {
+    const uniqueColumns = [...new Set(nodes.map((node) => node.x0))];
+    return uniqueColumns.map((x0) => (
+      <foreignObject
+        key={`search-${x0}`}
+        x={x0}
+        y={MARGIN_Y + 10}
+        width={sankeyGenerator.nodeWidth()}
+        height={20}
+      >
+        <input
+          type="text"
+          placeholder="Search..."
+          value={searchText[x0] || ""}
+          onChange={(e) => handleSearchChange(x0, e.target.value)}
+          style={{
+            width: "95%",
+            height: "65%",
+            fontSize: "10px",
+            textAlign: "center",
+            // border: "none",
+          }}
+        />
+      </foreignObject>
     ));
   };
 
@@ -211,12 +333,35 @@ export const Sankey = ({ width, height, data }) => {
           y={node.y0}
           // fill="#eff8ff"
           fill={isSelected ? "#96caf2" : "#eff8ff"}
-          fillOpacity={isSelected || isHovered || isRelevant ? 0.8 : 0.5}
+          // fillOpacity={isSelected || isHovered || isRelevant ? 0.8 : 0.5}
+          fillOpacity={1}
           rx={2}
           stroke="none"
         />
         {/* Add left and right borders on hover */}
         {isHovered && (
+          <>
+            {/* Left border */}
+            <line
+              x1={node.x0}
+              y1={node.y0}
+              x2={node.x0}
+              y2={node.y1}
+              stroke="#1849a9"
+              strokeWidth="1"
+            />
+            {/* Right border */}
+            <line
+              x1={node.x0 + sankeyGenerator.nodeWidth()}
+              y1={node.y0}
+              x2={node.x0 + sankeyGenerator.nodeWidth()}
+              y2={node.y1}
+              stroke="#1849a9"
+              strokeWidth="1"
+            />
+          </>
+        )}
+        {isSelected && (
           <>
             {/* Left border */}
             <line
@@ -288,11 +433,15 @@ export const Sankey = ({ width, height, data }) => {
       />
     );
   });
-
   return (
     <div>
-      <svg width={width} height={height}>
+      <svg
+        width={width}
+        height={height}
+        style={{ userSelect: "none" }} // Disable text selection for the SVG
+      >
         {renderColumnTitles()}
+        {renderSearchBars()}
         <g>{allLinks}</g>
         <g>{allNodes}</g>
       </svg>
