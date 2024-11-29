@@ -9,6 +9,10 @@ export const Sankey = ({ width, height, data }) => {
   const [hoveredNode, setHoveredNode] = useState(null); // Hover state
   const [selectedNodes, setSelectedNodes] = useState([]); // List of selected nodes
   const [searchText, setSearchText] = useState({}); // State for search text per column
+  const [filteredBySearch, setFilteredBySearch] = useState({
+    nodes: new Set(),
+    links: new Set(),
+  });
   const fixedHeight = 30; // Fixed height for nodes
   const verticalSpacing = 20; // Fixed vertical spacing between nodes
   const TITLE_AND_SEARCH_MARGIN = 50; // Adjust as needed to account for title and search bar
@@ -88,34 +92,43 @@ export const Sankey = ({ width, height, data }) => {
   const handleSearchChange = (x0, value) => {
     setSearchText((prev) => ({ ...prev, [x0]: value }));
 
-    // Automatically update selectedNodes based on search text
+    // Filter nodes for the specific column based on the search text
     const filteredNodesForColumn = nodes.filter(
       (node) =>
         node.x0 === x0 && node.name.toLowerCase().includes(value.toLowerCase())
     );
 
-    // // Collect all nodes connected to filtered nodes
-    // let allRelevantNodes = new Set();
-    // let allRelevantLinks = new Set();
+    // Collect all connected nodes and links for the filtered nodes
+    let allRelevantNodes = new Set();
+    let allRelevantLinks = new Set();
 
-    // filteredNodesForColumn.forEach((node) => {
-    //   const { visitedNodes: connectedNodes, visitedLinks: connectedLinks } =
-    //     getConnectedNodesAndLinks(node);
-    //   connectedNodes.forEach((n) => allRelevantNodes.add(n));
-    //   connectedLinks.forEach((l) => allRelevantLinks.add(l));
-    // });
-    console.log("filteredNodesForColumn--", filteredNodesForColumn);
-    getConnectedNodesAndLinks(Array.from(filteredNodesForColumn));
+    filteredNodesForColumn.forEach((node) => {
+      const { visitedNodes: connectedNodes, visitedLinks: connectedLinks } =
+        getConnectedNodesAndLinks(node);
+      connectedNodes.forEach((n) => allRelevantNodes.add(n));
+      connectedLinks.forEach((l) => allRelevantLinks.add(l));
+    });
+
+    // Update the state to reflect the search results
+    setFilteredBySearch({
+      nodes: allRelevantNodes,
+      links: allRelevantLinks,
+    });
   };
 
-  // Determine nodes and links to display based on selection
+  // Determine nodes and links to display
   let visitedNodes = new Set(); // Default to no nodes
   let visitedLinks = new Set(); // Default to no links
 
-  if (selectedNodes.length > 0) {
+  if (
+    selectedNodes.length > 0 &&
+    Object.values(searchText).some((text) => text.trim() !== "")
+  ) {
+    // If both a node is selected and a search is active, intersect the two sets
     selectedNodes.forEach((node, index) => {
       const { visitedNodes: nodesForCurrent, visitedLinks: linksForCurrent } =
         getConnectedNodesAndLinks(node);
+
       if (index === 0) {
         visitedNodes = nodesForCurrent;
         visitedLinks = linksForCurrent;
@@ -124,8 +137,32 @@ export const Sankey = ({ width, height, data }) => {
         visitedLinks = intersectSets(visitedLinks, linksForCurrent);
       }
     });
+
+    // Intersect with nodes and links from the search results
+    if (filteredBySearch.nodes.size > 0) {
+      visitedNodes = intersectSets(visitedNodes, filteredBySearch.nodes);
+      visitedLinks = intersectSets(visitedLinks, filteredBySearch.links);
+    }
+  } else if (selectedNodes.length > 0) {
+    // If only nodes are selected
+    selectedNodes.forEach((node, index) => {
+      const { visitedNodes: nodesForCurrent, visitedLinks: linksForCurrent } =
+        getConnectedNodesAndLinks(node);
+
+      if (index === 0) {
+        visitedNodes = nodesForCurrent;
+        visitedLinks = linksForCurrent;
+      } else {
+        visitedNodes = intersectSets(visitedNodes, nodesForCurrent);
+        visitedLinks = intersectSets(visitedLinks, linksForCurrent);
+      }
+    });
+  } else if (Object.values(searchText).some((text) => text.trim() !== "")) {
+    // If there's an active search, display nodes and links filtered by search
+    visitedNodes = filteredBySearch.nodes;
+    visitedLinks = filteredBySearch.links;
   } else {
-    // Highlight nodes and links on hover only
+    // Default: Display all nodes and links
     visitedNodes = new Set(nodes);
     visitedLinks = new Set(links);
   }
