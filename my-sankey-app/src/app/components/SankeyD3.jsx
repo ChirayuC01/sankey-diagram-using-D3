@@ -1,5 +1,5 @@
 "use client";
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { sankey, sankeyCenter } from "d3-sankey";
 
 const MARGIN_Y = 25;
@@ -8,6 +8,7 @@ const MARGIN_X = 5;
 export const Sankey = ({ width, height, data }) => {
   const [hoveredNode, setHoveredNode] = useState(null); // Hover state
   const [selectedNodes, setSelectedNodes] = useState([]); // List of selected nodes
+  const [searchText, setSearchText] = useState({}); // State for search text per column
   const fixedHeight = 30; // Fixed height for nodes
   const verticalSpacing = 20; // Fixed vertical spacing between nodes
 
@@ -70,13 +71,21 @@ export const Sankey = ({ width, height, data }) => {
   };
 
   const handleClick = (node) => {
+    const column = node.x0;
+
     if (selectedNodes.includes(node)) {
-      // Deselect node if already selected
+      // Deselect node if already selected and clear search for its column
       setSelectedNodes(selectedNodes.filter((n) => n !== node));
+      setSearchText((prev) => ({ ...prev, [column]: "" }));
     } else {
-      // Add node to selection
+      // Select node and set its label in the search bar for the column
       setSelectedNodes([...selectedNodes, node]);
+      setSearchText((prev) => ({ ...prev, [column]: node.name }));
     }
+  };
+
+  const handleSearchChange = (x0, value) => {
+    setSearchText((prev) => ({ ...prev, [x0]: value }));
   };
 
   // Determine nodes and links to display based on selection
@@ -112,9 +121,25 @@ export const Sankey = ({ width, height, data }) => {
     hoveredLinks = linksForHover;
   }
 
-  // Filter nodes and links to display only relevant ones on click
-  const filteredNodes = nodes.filter((node) => visitedNodes.has(node));
-  const filteredLinks = links.filter((link) => visitedLinks.has(link));
+  // // Filter nodes and links to display only relevant ones on click
+  // const filteredNodes = nodes.filter((node) => visitedNodes.has(node));
+  // Filter nodes based on search text for each column
+  const filteredNodes = nodes.filter((node) => {
+    const columnSearchText = searchText[node.x0] || "";
+    return (
+      node.name.toLowerCase().includes(columnSearchText.toLowerCase()) &&
+      visitedNodes.has(node)
+    );
+  });
+
+  // const filteredLinks = links.filter((link) => visitedLinks.has(link));
+  // Filter links based on filtered nodes
+  const filteredLinks = links.filter(
+    (link) =>
+      filteredNodes.includes(link.source) &&
+      filteredNodes.includes(link.target) &&
+      visitedLinks.has(link)
+  );
 
   // Adjust positions dynamically for filtered nodes
   const adjustNodePositions = (filteredNodes) => {
@@ -149,6 +174,33 @@ export const Sankey = ({ width, height, data }) => {
     `;
   };
 
+  // Render search bars above each column
+  const renderSearchBars = () => {
+    const uniqueColumns = [...new Set(nodes.map((node) => node.x0))];
+    return uniqueColumns.map((x0) => (
+      <foreignObject
+        key={`search-${x0}`}
+        x={x0}
+        y={MARGIN_Y - 20}
+        width={sankeyGenerator.nodeWidth()}
+        height={20}
+      >
+        <input
+          type="text"
+          placeholder="Search..."
+          value={searchText[x0] || ""}
+          onChange={(e) => handleSearchChange(x0, e.target.value)}
+          style={{
+            width: "100%",
+            height: "100%",
+            fontSize: "10px",
+            textAlign: "center",
+          }}
+        />
+      </foreignObject>
+    ));
+  };
+
   // Render nodes
   const allNodes = filteredNodes.map((node) => {
     const isHovered = hoveredNodes.has(node);
@@ -181,6 +233,28 @@ export const Sankey = ({ width, height, data }) => {
         />
         {/* Add left and right borders on hover */}
         {isHovered && (
+          <>
+            {/* Left border */}
+            <line
+              x1={node.x0}
+              y1={node.y0}
+              x2={node.x0}
+              y2={node.y1}
+              stroke="#1849a9"
+              strokeWidth="1"
+            />
+            {/* Right border */}
+            <line
+              x1={node.x0 + sankeyGenerator.nodeWidth()}
+              y1={node.y0}
+              x2={node.x0 + sankeyGenerator.nodeWidth()}
+              y2={node.y1}
+              stroke="#1849a9"
+              strokeWidth="1"
+            />
+          </>
+        )}
+        {isSelected && (
           <>
             {/* Left border */}
             <line
@@ -256,6 +330,7 @@ export const Sankey = ({ width, height, data }) => {
   return (
     <div>
       <svg width={width} height={height}>
+        {renderSearchBars()}
         <g>{allLinks}</g>
         <g>{allNodes}</g>
       </svg>
