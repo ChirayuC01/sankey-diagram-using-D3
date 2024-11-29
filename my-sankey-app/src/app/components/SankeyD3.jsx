@@ -11,7 +11,7 @@ export const Sankey = ({ width, height, data }) => {
   const [searchText, setSearchText] = useState({}); // State for search text per column
   const fixedHeight = 30; // Fixed height for nodes
   const verticalSpacing = 20; // Fixed vertical spacing between nodes
-  const TITLE_AND_SEARCH_MARGIN = 60; // Adjust as needed to account for title and search bar
+  const TITLE_AND_SEARCH_MARGIN = 50; // Adjust as needed to account for title and search bar
 
   const sankeyGenerator = sankey()
     .nodeWidth(180)
@@ -253,10 +253,11 @@ export const Sankey = ({ width, height, data }) => {
           value={searchText[x0] || ""}
           onChange={(e) => handleSearchChange(x0, e.target.value)}
           style={{
-            width: "100%",
-            height: "100%",
+            width: "95%",
+            height: "65%",
             fontSize: "10px",
             textAlign: "center",
+            // border: "none",
           }}
         />
       </foreignObject>
@@ -289,7 +290,8 @@ export const Sankey = ({ width, height, data }) => {
           y={node.y0}
           // fill="#eff8ff"
           fill={isSelected ? "#96caf2" : "#eff8ff"}
-          fillOpacity={isSelected || isHovered || isRelevant ? 0.8 : 0.5}
+          // fillOpacity={isSelected || isHovered || isRelevant ? 0.8 : 0.5}
+          fillOpacity={1}
           rx={2}
           stroke="none"
         />
@@ -390,7 +392,11 @@ export const Sankey = ({ width, height, data }) => {
   });
   return (
     <div>
-      <svg width={width} height={height}>
+      <svg
+        width={width}
+        height={height}
+        style={{ userSelect: "none" }} // Disable text selection for the SVG
+      >
         {renderColumnTitles()}
         {renderSearchBars()}
         <g>{allLinks}</g>
