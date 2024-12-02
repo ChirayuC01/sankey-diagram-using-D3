@@ -4,8 +4,8 @@ import { greenhouseData } from "@/app/data/greenhouseData";
 
 export default function Home() {
   const numericData = {
-    nodes: greenhouseData.nodes,
-    links: greenhouseData.links.map((link) => ({
+    nodes: sankeyData.nodes,
+    links: sankeyData.links.map((link) => ({
       ...link,
       value: +link.value,
     })),

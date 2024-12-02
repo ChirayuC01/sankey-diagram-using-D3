@@ -323,114 +323,189 @@ export const Sankey = ({ width, height, data }) => {
   };
 
   // Render nodes
-  const allNodes = filteredNodes.map((node) => {
-    const isHovered = hoveredNodes.has(node);
-    const isSelected = selectedNodes.includes(node);
-    const isRelevant = visitedNodes.has(node);
+  const renderNodesWithTitles = () => {
+    // Group nodes by intermediateName, keeping a separate group for nodes without it
+    const groupedNodes = nodes.reduce(
+      (acc, node) => {
+        if (node.intermediateName) {
+          const group = node.intermediateName;
+          if (!acc[group]) acc[group] = [];
+          acc[group].push(node);
+        } else {
+          acc.ungrouped.push(node); // Add nodes without intermediateName to "ungrouped"
+        }
+        return acc;
+      },
+      { ungrouped: [] } // Initialize with an ungrouped array
+    );
 
-    // Check if the node is in one of the first three columns
-    const isInFirstThreeColumns =
-      node.x0 < MARGIN_X + 5 * sankeyGenerator.nodeWidth();
+    // Helper to render individual nodes
+    const renderNode = (node) => {
+      const isHovered = hoveredNodes.has(node);
+      const isSelected = selectedNodes.includes(node);
+      const isRelevant = visitedNodes.has(node); // Only render relevant nodes if filtering
 
-    return (
-      <g
-        key={node.index}
-        onMouseEnter={() => handleMouseEnter(node)}
-        onMouseLeave={handleMouseLeave}
-        onClick={() => handleClick(node)}
-        style={{ cursor: "pointer" }}
-      >
-        {/* Node rectangle */}
-        <rect
-          height={fixedHeight}
-          width={sankeyGenerator.nodeWidth()}
-          x={node.x0}
-          y={node.y0}
-          // fill="#eff8ff"
-          fill={isSelected ? "#96caf2" : "#eff8ff"}
-          // fillOpacity={isSelected || isHovered || isRelevant ? 0.8 : 0.5}
-          fillOpacity={1}
-          rx={2}
-          stroke="none"
-        />
-        {/* Add left and right borders on hover */}
-        {isHovered && (
-          <>
-            {/* Left border */}
-            <line
-              x1={node.x0}
-              y1={node.y0}
-              x2={node.x0}
-              y2={node.y1}
-              stroke="#1849a9"
-              strokeWidth="1"
-            />
-            {/* Right border */}
-            <line
-              x1={node.x0 + sankeyGenerator.nodeWidth()}
-              y1={node.y0}
-              x2={node.x0 + sankeyGenerator.nodeWidth()}
-              y2={node.y1}
-              stroke="#1849a9"
-              strokeWidth="1"
-            />
-          </>
-        )}
-        {isSelected && (
-          <>
-            {/* Left border */}
-            <line
-              x1={node.x0}
-              y1={node.y0}
-              x2={node.x0}
-              y2={node.y1}
-              stroke="#1849a9"
-              strokeWidth="1"
-            />
-            {/* Right border */}
-            <line
-              x1={node.x0 + sankeyGenerator.nodeWidth()}
-              y1={node.y0}
-              x2={node.x0 + sankeyGenerator.nodeWidth()}
-              y2={node.y1}
-              stroke="#1849a9"
-              strokeWidth="1"
-            />
-          </>
-        )}
-        {/* Arrow on the right for nodes in the first three columns */}
-        {isInFirstThreeColumns && (
-          <path
-            d={` 
+      // Check if the node is in one of the first three columns
+      const isInFirstThreeColumns =
+        node.x0 < MARGIN_X + 5 * sankeyGenerator.nodeWidth();
+
+      if (!isRelevant) return null;
+
+      return (
+        <g
+          key={node.index}
+          onMouseEnter={() => handleMouseEnter(node)}
+          onMouseLeave={handleMouseLeave}
+          onClick={() => handleClick(node)}
+          style={{ cursor: "pointer" }}
+        >
+          <rect
+            height={node.y1 - node.y0}
+            width={sankeyGenerator.nodeWidth()}
+            x={node.x0}
+            y={node.y0}
+            fill={isSelected ? "#96caf2" : "#eff8ff"}
+            fillOpacity={1}
+            rx={2}
+            stroke="none"
+          />
+          {isHovered && (
+            <>
+              {/* Left border */}
+              <line
+                x1={node.x0}
+                y1={node.y0}
+                x2={node.x0}
+                y2={node.y1}
+                stroke="#1849a9"
+                strokeWidth="1"
+              />
+              {/* Right border */}
+              <line
+                x1={node.x0 + sankeyGenerator.nodeWidth()}
+                y1={node.y0}
+                x2={node.x0 + sankeyGenerator.nodeWidth()}
+                y2={node.y1}
+                stroke="#1849a9"
+                strokeWidth="1"
+              />
+            </>
+          )}
+          {isSelected && (
+            <>
+              {/* Left border */}
+              <line
+                x1={node.x0}
+                y1={node.y0}
+                x2={node.x0}
+                y2={node.y1}
+                stroke="#1849a9"
+                strokeWidth="1"
+              />
+              {/* Right border */}
+              <line
+                x1={node.x0 + sankeyGenerator.nodeWidth()}
+                y1={node.y0}
+                x2={node.x0 + sankeyGenerator.nodeWidth()}
+                y2={node.y1}
+                stroke="#1849a9"
+                strokeWidth="1"
+              />
+            </>
+          )}
+          {/* Arrow on the right for nodes in the first three columns */}
+          {isInFirstThreeColumns && (
+            <path
+              d={` 
             M${node.x0 + sankeyGenerator.nodeWidth()},${
-              node.y0 + fixedHeight / 2
-            }
+                node.y0 + fixedHeight / 2
+              }
             L${node.x0 + sankeyGenerator.nodeWidth() + 6},${
-              node.y0 + fixedHeight / 2 - 3
-            }
+                node.y0 + fixedHeight / 2 - 3
+              }
             L${node.x0 + sankeyGenerator.nodeWidth() + 6},${
-              node.y0 + fixedHeight / 2 + 3
-            }
+                node.y0 + fixedHeight / 2 + 3
+              }
             Z
           `}
-            fill="#808080"
-          />
-        )}
-        {/* Node text */}
-        <text
-          x={node.x0 + sankeyGenerator.nodeWidth() / 2}
-          y={node.y0 + fixedHeight / 2}
-          textAnchor="middle"
-          dy="0.35em"
-          fontSize={10}
-          fill="black"
-          // fontWeight="bold"
-        >
-          {node.name}
-        </text>
-      </g>
+              fill="#808080"
+            />
+          )}
+          <text
+            x={node.x0 + sankeyGenerator.nodeWidth() / 2}
+            y={(node.y0 + node.y1) / 2}
+            textAnchor="middle"
+            dy="0.35em"
+            fontSize={10}
+            fill="black"
+          >
+            {node.name}
+          </text>
+        </g>
+      );
+    };
+
+    // Map through grouped nodes (with intermediateName) and render titles and nodes
+    const titledGroups = Object.entries(groupedNodes)
+      .filter(([key]) => key !== "ungrouped") // Exclude "ungrouped" when rendering titles
+      .map(([groupName, groupNodes]) => {
+        // Filter group nodes to only include relevant nodes
+        const relevantGroupNodes = groupNodes.filter((node) =>
+          visitedNodes.has(node)
+        );
+
+        if (relevantGroupNodes.length === 0) {
+          // Skip rendering this group if no nodes are relevant
+          return null;
+        }
+
+        // Get the minimum `y0` position for the group to place the title above it
+        const minY = Math.min(...relevantGroupNodes.map((node) => node.y0));
+        const centerX =
+          relevantGroupNodes.reduce(
+            (sum, node) => sum + (node.x0 + node.x1) / 2,
+            0
+          ) / relevantGroupNodes.length;
+
+        // Render group title
+        const groupTitle = (
+          <text
+            key={`title-${groupName}`}
+            x={centerX} // Center title above the nodes in the group
+            y={minY - 10} // Position slightly above the topmost node
+            textAnchor="middle"
+            fontSize={16}
+            fontWeight="bold"
+            fill="black"
+          >
+            {groupName}
+          </text>
+        );
+
+        // Render nodes in the group
+        const groupNodeElements = relevantGroupNodes.map(renderNode);
+
+        return (
+          <g key={`group-${groupName}`}>
+            {groupTitle}
+            {groupNodeElements}
+          </g>
+        );
+      });
+
+    // Render ungrouped nodes without titles
+    const ungroupedNodes = groupedNodes.ungrouped
+      .filter((node) => visitedNodes.has(node)) // Only render relevant ungrouped nodes
+      .map(renderNode);
+
+    // Combine titled groups and ungrouped nodes
+    return (
+      <>
+        {titledGroups}
+        <g key="ungrouped-nodes">{ungroupedNodes}</g>
+      </>
     );
-  });
+  };
 
   // Render links
   const allLinks = filteredLinks.map((link, i) => {
@@ -492,7 +567,7 @@ export const Sankey = ({ width, height, data }) => {
           {renderColumnTitles()}
           {renderSearchBars()}
           <g>{allLinks}</g>
-          <g>{allNodes}</g>
+          <g>{renderNodesWithTitles()}</g>
         </svg>
       </div>
     </div>
