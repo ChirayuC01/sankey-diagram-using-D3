@@ -82,6 +82,7 @@ export const Sankey = ({ width, height, data }) => {
       // Deselect node if already selected and clear search for its column
       setSelectedNodes(selectedNodes.filter((n) => n !== node));
       setSearchText((prev) => ({ ...prev, [column]: "" }));
+      setFilteredBySearch({ nodes: new Set(), links: new Set() });
     } else {
       // Select node and set its label in the search bar for the column
       setSelectedNodes([...selectedNodes, node]);
@@ -122,6 +123,8 @@ export const Sankey = ({ width, height, data }) => {
       connectedNodes.forEach((n) => allRelevantNodes.add(n));
       connectedLinks.forEach((l) => allRelevantLinks.add(l));
     });
+    // console.log("allRelevantNodes---", allRelevantNodes);
+    // console.log("allRelevantLinks---", allRelevantLinks);
 
     // Update the state to reflect the search results
     setFilteredBySearch({
@@ -247,6 +250,18 @@ export const Sankey = ({ width, height, data }) => {
        ${link.target.x0},${targetCenter}
     `;
   };
+
+  // Reset function
+  const resetStates = () => {
+    setHoveredNode(null);
+    setSelectedNodes([]);
+    setSearchText({});
+    setFilteredBySearch({
+      nodes: new Set(),
+      links: new Set(),
+    });
+  };
+
   const renderColumnTitles = () => {
     const columnTitles = [
       "Market Authority",
@@ -433,18 +448,53 @@ export const Sankey = ({ width, height, data }) => {
       />
     );
   });
+
+  // console.log("searchText--", searchText);
+  // console.log("selectedNodes--", selectedNodes);
+  // console.log("filteredBySearch--", filteredBySearch);
   return (
     <div>
-      <svg
-        width={width}
-        height={height}
-        style={{ userSelect: "none" }} // Disable text selection for the SVG
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "flex-end",
+          paddingTop: "20px",
+          paddingRight: "100px",
+          paddingLeft: "100px",
+          paddingBottom: "50px",
+        }}
       >
-        {renderColumnTitles()}
-        {renderSearchBars()}
-        <g>{allLinks}</g>
-        <g>{allNodes}</g>
-      </svg>
+        <button
+          onClick={resetStates}
+          style={{
+            marginBottom: "10px",
+            padding: "5px 10px",
+            fontSize: "14px",
+            backgroundColor: "#F98080",
+            cursor: "pointer",
+            borderRadius: "8px",
+          }}
+        >
+          Reset
+        </button>
+      </div>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "center",
+        }}
+      >
+        <svg
+          width={width}
+          height={height}
+          style={{ userSelect: "none" }} // Disable text selection for the SVG
+        >
+          {renderColumnTitles()}
+          {renderSearchBars()}
+          <g>{allLinks}</g>
+          <g>{allNodes}</g>
+        </svg>
+      </div>
     </div>
   );
 };
